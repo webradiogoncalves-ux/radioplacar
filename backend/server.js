@@ -12,6 +12,10 @@ import {
   importAllDarkGames
 } from "./darkGamesSource.js";
 
+import {
+  enrichDarkGameLogos
+} from "./darkGamesLogos.js";
+
 dotenv.config();
 
 const app = express();
@@ -19,9 +23,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 3001;
-const API_KEY = process.env.API_FOOTBALL_KEY;
-const API_BASE = "https://sports.bzzoiro.com";
+const PORT =
+  process.env.PORT || 3001;
+
+const API_KEY =
+  process.env.API_FOOTBALL_KEY;
+
+const API_BASE =
+  "https://sports.bzzoiro.com";
 
 /* =========================
    CACHE
@@ -30,11 +39,15 @@ const API_BASE = "https://sports.bzzoiro.com";
 const cache = new Map();
 
 function getCache(key, maxAge) {
-  const item = cache.get(key);
+  const item =
+    cache.get(key);
 
   if (!item) return null;
 
-  if (Date.now() - item.time > maxAge) {
+  if (
+    Date.now() - item.time >
+    maxAge
+  ) {
     cache.delete(key);
     return null;
   }
@@ -60,19 +73,24 @@ async function apiRequest(pathOrUrl) {
     );
   }
 
-  const url = pathOrUrl.startsWith("http")
-    ? pathOrUrl
-    : `${API_BASE}${pathOrUrl}`;
+  const url =
+    pathOrUrl.startsWith("http")
+      ? pathOrUrl
+      : `${API_BASE}${pathOrUrl}`;
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Token ${API_KEY}`,
-      Accept: "application/json"
-    }
-  });
+  const response =
+    await fetch(url, {
+      headers: {
+        Authorization:
+          `Token ${API_KEY}`,
+        Accept:
+          "application/json"
+      }
+    });
 
   if (!response.ok) {
-    const text = await response.text();
+    const text =
+      await response.text();
 
     throw new Error(
       `Erro na API ${response.status}: ${text}`
@@ -97,12 +115,14 @@ function hojeUTC() {
 ========================= */
 
 async function getAllMatches(date) {
-  const cacheKey = `matches-${date}`;
+  const cacheKey =
+    `matches-${date}`;
 
-  const cached = getCache(
-    cacheKey,
-    60000
-  );
+  const cached =
+    getCache(
+      cacheKey,
+      60000
+    );
 
   if (cached) {
     return cached;
@@ -118,13 +138,20 @@ async function getAllMatches(date) {
   let total = 0;
   let pages = 0;
 
-  while (url && pages < 20) {
+  while (
+    url &&
+    pages < 20
+  ) {
     const data =
       await apiRequest(url);
 
     pages += 1;
 
-    if (Array.isArray(data?.results)) {
+    if (
+      Array.isArray(
+        data?.results
+      )
+    ) {
       allResults.push(
         ...data.results
       );
@@ -134,15 +161,18 @@ async function getAllMatches(date) {
       typeof data?.count ===
       "number"
     ) {
-      total = data.count;
+      total =
+        data.count;
     }
 
-    url = data?.next || null;
+    url =
+      data?.next || null;
   }
 
   const response = {
     count:
-      total || allResults.length,
+      total ||
+      allResults.length,
 
     returned:
       allResults.length,
@@ -166,10 +196,11 @@ async function getAllMatches(date) {
 ========================= */
 
 async function getAllLeagues() {
-  const cached = getCache(
-    "leagues-all",
-    30 * 60 * 1000
-  );
+  const cached =
+    getCache(
+      "leagues-all",
+      30 * 60 * 1000
+    );
 
   if (cached) {
     return cached;
@@ -183,13 +214,20 @@ async function getAllLeagues() {
   let total = 0;
   let pages = 0;
 
-  while (url && pages < 20) {
+  while (
+    url &&
+    pages < 20
+  ) {
     const data =
       await apiRequest(url);
 
     pages += 1;
 
-    if (Array.isArray(data?.results)) {
+    if (
+      Array.isArray(
+        data?.results
+      )
+    ) {
       allResults.push(
         ...data.results
       );
@@ -199,15 +237,18 @@ async function getAllLeagues() {
       typeof data?.count ===
       "number"
     ) {
-      total = data.count;
+      total =
+        data.count;
     }
 
-    url = data?.next || null;
+    url =
+      data?.next || null;
   }
 
   const response = {
     count:
-      total || allResults.length,
+      total ||
+      allResults.length,
 
     returned:
       allResults.length,
@@ -230,18 +271,21 @@ async function getAllLeagues() {
    INÍCIO
 ========================= */
 
-app.get("/", (req, res) => {
-  res.json({
-    app:
-      "RádioPlacar API",
+app.get(
+  "/",
+  (req, res) => {
+    res.json({
+      app:
+        "RádioPlacar API",
 
-    status:
-      "online",
+      status:
+        "online",
 
-    version:
-      "1.5.0"
-  });
-});
+      version:
+        "1.6.0"
+    });
+  }
+);
 
 /* =========================
    HEALTH
@@ -300,11 +344,13 @@ app.get(
         error.message
       );
 
-      res.status(500).json({
-        error: true,
-        message:
-          error.message
-      });
+      res
+        .status(500)
+        .json({
+          error: true,
+          message:
+            error.message
+        });
     }
   }
 );
@@ -333,11 +379,13 @@ app.get(
         error.message
       );
 
-      res.status(500).json({
-        error: true,
-        message:
-          error.message
-      });
+      res
+        .status(500)
+        .json({
+          error: true,
+          message:
+            error.message
+        });
     }
   }
 );
@@ -367,11 +415,13 @@ app.get(
         error.message
       );
 
-      res.status(500).json({
-        error: true,
-        message:
-          error.message
-      });
+      res
+        .status(500)
+        .json({
+          error: true,
+          message:
+            error.message
+        });
     }
   }
 );
@@ -395,11 +445,13 @@ app.get(
         error.message
       );
 
-      res.status(500).json({
-        error: true,
-        message:
-          error.message
-      });
+      res
+        .status(500)
+        .json({
+          error: true,
+          message:
+            error.message
+        });
     }
   }
 );
@@ -448,11 +500,13 @@ app.get(
         error.message
       );
 
-      res.status(500).json({
-        error: true,
-        message:
-          error.message
-      });
+      res
+        .status(500)
+        .json({
+          error: true,
+          message:
+            error.message
+        });
     }
   }
 );
@@ -485,11 +539,13 @@ app.get(
         error.message
       );
 
-      res.status(500).json({
-        error: true,
-        message:
-          error.message
-      });
+      res
+        .status(500)
+        .json({
+          error: true,
+          message:
+            error.message
+        });
     }
   }
 );
@@ -518,11 +574,65 @@ app.get(
         error.message
       );
 
-      res.status(500).json({
-        error: true,
-        message:
-          error.message
+      res
+        .status(500)
+        .json({
+          error: true,
+          message:
+            error.message
+        });
+    }
+  }
+);
+
+/* =========================
+   ESCUDOS JOGOS DO ESCURO
+========================= */
+
+app.get(
+  "/api/dark-games/logos",
+  async (req, res) => {
+    try {
+      let games =
+        getDarkGames();
+
+      /*
+        O Render pode reiniciar e
+        apagar o Map da memória.
+        Se estiver vazio, importa
+        os jogos novamente.
+      */
+
+      if (
+        games.length === 0
+      ) {
+        await importAllDarkGames();
+
+        games =
+          getDarkGames();
+      }
+
+      const result =
+        await enrichDarkGameLogos();
+
+      res.json({
+        ok: true,
+        ...result
       });
+
+    } catch (error) {
+      console.error(
+        "Erro escudos dark-games:",
+        error.message
+      );
+
+      res
+        .status(500)
+        .json({
+          error: true,
+          message:
+            error.message
+        });
     }
   }
 );
@@ -559,11 +669,13 @@ app.get(
         error.message
       );
 
-      res.status(500).json({
-        error: true,
-        message:
-          error.message
-      });
+      res
+        .status(500)
+        .json({
+          error: true,
+          message:
+            error.message
+        });
     }
   }
 );
@@ -599,11 +711,13 @@ app.get(
         error.message
       );
 
-      res.status(500).json({
-        error: true,
-        message:
-          error.message
-      });
+      res
+        .status(500)
+        .json({
+          error: true,
+          message:
+            error.message
+        });
     }
   }
 );
