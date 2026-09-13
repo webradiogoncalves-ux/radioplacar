@@ -7,7 +7,9 @@ import {
   RefreshCw,
   Clock3,
   Trophy,
-  MapPin
+  MapPin,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import "./styles.css";
 
@@ -260,18 +262,25 @@ function MatchCard({
 ========================= */
 
 function CompetitionGroup({
-  group
+  group,
+  open,
+  onToggle
 }) {
   return (
     <section
       style={{
-        marginBottom: "22px"
+        marginBottom: "14px"
       }}
     >
-      <div
+      <button
+        type="button"
+        onClick={onToggle}
         style={{
+          width: "100%",
           padding: "13px 14px",
-          marginBottom: "10px",
+          marginBottom: open
+            ? "10px"
+            : "0",
           display: "flex",
           alignItems: "center",
           gap: "11px",
@@ -279,7 +288,9 @@ function CompetitionGroup({
           background:
             "rgba(14,90,150,0.22)",
           border:
-            "1px solid rgba(92,200,242,0.12)"
+            "1px solid rgba(92,200,242,0.12)",
+          color: "#ffffff",
+          textAlign: "left"
         }}
       >
         <div
@@ -320,6 +331,7 @@ function CompetitionGroup({
             }}
           >
             <MapPin size={10} />
+
             {group.country}
           </div>
 
@@ -336,19 +348,40 @@ function CompetitionGroup({
           </div>
         </div>
 
-        <div className="section-count">
-          {group.matches.length}
-        </div>
-      </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
+          }}
+        >
+          <span className="section-count">
+            {group.matches.length}
+          </span>
 
-      {group.matches.map(
-        (match) => (
-          <MatchCard
-            key={match.id}
-            match={match}
-          />
-        )
-      )}
+          {open ? (
+            <ChevronUp
+              size={18}
+              color="#5cc8f2"
+            />
+          ) : (
+            <ChevronDown
+              size={18}
+              color="#5cc8f2"
+            />
+          )}
+        </div>
+      </button>
+
+      {open &&
+        group.matches.map(
+          (match) => (
+            <MatchCard
+              key={match.id}
+              match={match}
+            />
+          )
+        )}
     </section>
   );
 }
@@ -375,6 +408,11 @@ function App() {
 
   const [playing] =
     useState(false);
+
+  const [
+    expandedCompetitions,
+    setExpandedCompetitions
+  ] = useState({});
 
   /* =========================
      CARREGAR DADOS
@@ -570,6 +608,30 @@ function App() {
       return Array.from(
         map.values()
       ).sort((a, b) => {
+        const aHasLive =
+          a.matches.some((match) =>
+            isLive(match.status)
+          );
+
+        const bHasLive =
+          b.matches.some((match) =>
+            isLive(match.status)
+          );
+
+        if (
+          aHasLive &&
+          !bHasLive
+        ) {
+          return -1;
+        }
+
+        if (
+          !aHasLive &&
+          bHasLive
+        ) {
+          return 1;
+        }
+
         const countryCompare =
           String(a.country)
             .localeCompare(
@@ -593,6 +655,71 @@ function App() {
       normalizedMatches,
       leaguesMap
     ]);
+
+  /* =========================
+     ABRIR AUTOMATICAMENTE
+     CAMPEONATOS AO VIVO
+  ========================= */
+
+  useEffect(() => {
+    if (
+      groupedMatches.length === 0
+    ) {
+      return;
+    }
+
+    setExpandedCompetitions(
+      (old) => {
+        const next = {
+          ...old
+        };
+
+        groupedMatches.forEach(
+          (group) => {
+            const key =
+              String(
+                group.leagueId
+              );
+
+            if (
+              next[key] ===
+              undefined
+            ) {
+              const hasLive =
+                group.matches.some(
+                  (match) =>
+                    isLive(
+                      match.status
+                    )
+                );
+
+              next[key] = hasLive;
+            }
+          }
+        );
+
+        return next;
+      }
+    );
+  }, [groupedMatches]);
+
+  /* =========================
+     ABRIR / FECHAR
+  ========================= */
+
+  function toggleCompetition(
+    leagueId
+  ) {
+    const key =
+      String(leagueId);
+
+    setExpandedCompetitions(
+      (old) => ({
+        ...old,
+        [key]: !old[key]
+      })
+    );
+  }
 
   /* =========================
      TOTAL AO VIVO
@@ -691,14 +818,29 @@ function App() {
         {!loading &&
           !error &&
           groupedMatches.map(
-            (group) => (
-              <CompetitionGroup
-                key={
+            (group) => {
+              const key =
+                String(
                   group.leagueId
-                }
-                group={group}
-              />
-            )
+                );
+
+              return (
+                <CompetitionGroup
+                  key={key}
+                  group={group}
+                  open={
+                    expandedCompetitions[
+                      key
+                    ] === true
+                  }
+                  onToggle={() =>
+                    toggleCompetition(
+                      group.leagueId
+                    )
+                  }
+                />
+              );
+            }
           )}
 
         <div className="section-title">
