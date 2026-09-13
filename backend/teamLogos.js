@@ -1,3 +1,21 @@
+/*
+  RÁDIOPLACAR
+  Jogos do Escuro
+  Escudos externos - v4
+
+  ORDEM:
+  1. JoseArroyave/football-logos
+  2. Wikimedia Commons via Wikidata
+
+  NÃO USA BSD.
+*/
+
+const GITHUB_API =
+  "https://api.github.com/repos/JoseArroyave/football-logos/contents/logos/brazil";
+
+const RAW_BASE =
+  "https://raw.githubusercontent.com/JoseArroyave/football-logos/main/logos/brazil";
+
 const WIKIDATA_API =
   "https://www.wikidata.org/w/api.php";
 
@@ -9,16 +27,257 @@ const CACHE_MS =
 
 const cache = new Map();
 
-/* =========================
+let brazilFilesCache = {
+  time: 0,
+  files: null
+};
+
+/* =========================================================
+   ALIASES SEGUROS
+
+   Usamos somente quando sabemos
+   qual clube o nome representa.
+========================================================= */
+
+const TEAM_ALIASES = {
+  "altos pi": [
+    "associacao atletica de altos",
+    "altos"
+  ],
+
+  "america rn": [
+    "america de natal",
+    "america futebol clube natal"
+  ],
+
+  "america rj": [
+    "america football club rio de janeiro",
+    "america rio de janeiro"
+  ],
+
+  "aparecidense": [
+    "associacao atletica aparecidense"
+  ],
+
+  "iguatu": [
+    "associacao desportiva iguatu"
+  ],
+
+  "maguary": [
+    "associacao atletica maguary"
+  ],
+
+  "atletico ce": [
+    "atletico cearense",
+    "floresta atletico clube"
+  ],
+
+  "atletico de alagoinhas": [
+    "alagoainhas atletico clube",
+    "atletico de alagoinhas"
+  ],
+
+  "brasil de pelotas": [
+    "gremio esportivo brasil",
+    "brasil de pelotas"
+  ],
+
+  "botafogo pb": [
+    "botafogo futebol clube paraiba",
+    "botafogo paraiba"
+  ],
+
+  "capital df": [
+    "capital clube de futebol",
+    "capital df"
+  ],
+
+  "caxias": [
+    "sociedade esportiva e recreativa caxias do sul",
+    "caxias do sul"
+  ],
+
+  "confianca": [
+    "associacao desportiva confianca"
+  ],
+
+  "ferroviaria": [
+    "associacao ferroviaria de esportes"
+  ],
+
+  "ferroviario": [
+    "ferroviario atletico clube ceara"
+  ],
+
+  "fluminense pi": [
+    "fluminense esporte clube piaui",
+    "fluminense piaui"
+  ],
+
+  "gama": [
+    "sociedade esportiva do gama"
+  ],
+
+  "guarani": [
+    "guarani futebol clube"
+  ],
+
+  "guarany de bage": [
+    "guarany futebol clube bage",
+    "guarany de bage"
+  ],
+
+  "internacional de limeira": [
+    "associacao atletica internacional limeira",
+    "inter de limeira"
+  ],
+
+  "jacuipense": [
+    "esporte clube jacuipense"
+  ],
+
+  "juazeirense": [
+    "sociedade desportiva juazeirense"
+  ],
+
+  "manaus": [
+    "manaus futebol clube"
+  ],
+
+  "maranhao": [
+    "maranhao atletico clube"
+  ],
+
+  "marcilio dias": [
+    "clube nautico marcilio dias"
+  ],
+
+  "moto club": [
+    "moto club de sao luis"
+  ],
+
+  "nacional am": [
+    "nacional futebol clube amazonas",
+    "nacional amazonas"
+  ],
+
+  "operario ms": [
+    "operario futebol clube mato grosso do sul",
+    "operario campo grande"
+  ],
+
+  "operario vg": [
+    "clube esportivo operario varzea grandense",
+    "operario varzea grande"
+  ],
+
+  "parnahyba": [
+    "parnahyba sport club"
+  ],
+
+  "portuguesa rj": [
+    "associacao atletica portuguesa rio de janeiro",
+    "portuguesa carioca"
+  ],
+
+  "portuguesa": [
+    "associacao portuguesa de desportos",
+    "portuguesa de desportos"
+  ],
+
+  "real noroeste": [
+    "real noroeste capixaba futebol clube"
+  ],
+
+  "rio branco es": [
+    "rio branco atletico clube espirito santo",
+    "rio branco es"
+  ],
+
+  "sampaio correa": [
+    "sampaio correa futebol clube maranhao",
+    "sampaio correa"
+  ],
+
+  "sampaio correa rj": [
+    "sampaio correa futebol e esporte rio de janeiro",
+    "sampaio correa rj"
+  ],
+
+  "santa cruz": [
+    "santa cruz futebol clube pernambuco",
+    "santa cruz recife"
+  ],
+
+  "sao jose": [
+    "esporte clube sao jose porto alegre",
+    "sao jose rs"
+  ],
+
+  "sao joseense": [
+    "independente futebol sao joseense",
+    "sao joseense"
+  ],
+
+  "sao luiz": [
+    "esporte clube sao luiz ijui",
+    "sao luiz ijui"
+  ],
+
+  "sao raimundo rr": [
+    "sao raimundo esporte clube roraima",
+    "sao raimundo roraima"
+  ],
+
+  "trem": [
+    "trem desportivo clube"
+  ],
+
+  "treze": [
+    "treze futebol clube"
+  ],
+
+  "tuna luso": [
+    "tuna luso brasileira"
+  ],
+
+  "uniao rondonopolis": [
+    "uniao esporte clube rondonopolis"
+  ],
+
+  "xv de piracicaba": [
+    "esporte clube xv de novembro piracicaba",
+    "xv de novembro piracicaba"
+  ],
+
+  "ypiranga": [
+    "ypiranga futebol clube erechim",
+    "ypiranga rs"
+  ]
+};
+
+/* =========================================================
    NORMALIZAÇÃO
-========================= */
+========================================================= */
 
 function normalizeName(value) {
   return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/\.svg$/i, "")
+    .replace(/_/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripClubWords(value) {
+  return normalizeName(value)
+    .replace(
+      /\b(associacao|atletica|atletico|desportiva|desportivo|esporte|esportiva|sport|football|futebol|clube|club|sociedade|gremio|nautico)\b/g,
+      " "
+    )
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -32,75 +291,419 @@ function stripHtml(value) {
     .trim();
 }
 
-function metadataValue(metadata, key) {
+function metadataValue(
+  metadata,
+  key
+) {
   return stripHtml(
-    metadata?.[key]?.value || ""
+    metadata?.[key]?.value ||
+    ""
   );
 }
 
-/* =========================
-   LICENÇA
-========================= */
+/* =========================================================
+   NOMES PARA BUSCA
+========================================================= */
 
-function acceptedLicense(metadata) {
-  const license =
-    metadataValue(
-      metadata,
-      "LicenseShortName"
-    ).toLowerCase();
+function getSearchNames(teamName) {
+  const normalized =
+    normalizeName(teamName);
 
-  const copyrighted =
-    metadataValue(
-      metadata,
-      "Copyrighted"
-    ).toLowerCase();
+  const names =
+    new Set([
+      normalized
+    ]);
 
-  const allowed = [
-    "cc0",
-    "public domain",
-    "cc by",
-    "cc-by",
-    "cc by-sa",
-    "cc-by-sa"
-  ];
+  const aliases =
+    TEAM_ALIASES[
+      normalized
+    ] || [];
+
+  for (
+    const alias of aliases
+  ) {
+    names.add(
+      normalizeName(alias)
+    );
+  }
+
+  return [
+    ...names
+  ].filter(Boolean);
+}
+
+/* =========================================================
+   CARREGAR LISTA BRASIL
+========================================================= */
+
+async function loadBrazilFiles() {
+  if (
+    brazilFilesCache.files &&
+    Date.now() -
+      brazilFilesCache.time <
+      CACHE_MS
+  ) {
+    return brazilFilesCache.files;
+  }
+
+  const response =
+    await fetch(
+      GITHUB_API,
+      {
+        headers: {
+          Accept:
+            "application/vnd.github+json",
+
+          "User-Agent":
+            "RadioPlacar"
+        }
+      }
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `football-logos GitHub ${response.status}`
+    );
+  }
+
+  const data =
+    await response.json();
+
+  if (!Array.isArray(data)) {
+    throw new Error(
+      "Lista de escudos do Brasil inválida"
+    );
+  }
+
+  const files =
+    data
+      .filter(
+        item =>
+          item?.type === "file" &&
+          /\.svg$/i.test(
+            item?.name || ""
+          )
+      )
+      .map(
+        item => ({
+          name:
+            item.name,
+
+          normalized:
+            normalizeName(
+              item.name
+            ),
+
+          simplified:
+            stripClubWords(
+              item.name
+            ),
+
+          download_url:
+            item.download_url ||
+            null,
+
+          html_url:
+            item.html_url ||
+            null
+        })
+      );
+
+  brazilFilesCache = {
+    time:
+      Date.now(),
+
+    files
+  };
+
+  return files;
+}
+
+/* =========================================================
+   PONTUAÇÃO DO ARQUIVO
+
+   Quanto maior, mais segura
+   a correspondência.
+========================================================= */
+
+function fileScore(
+  teamName,
+  searchNames,
+  file
+) {
+  const requested =
+    normalizeName(teamName);
+
+  const requestedSimple =
+    stripClubWords(teamName);
+
+  let score = 0;
+
+  for (
+    const searchName of
+    searchNames
+  ) {
+    const simpleSearch =
+      stripClubWords(
+        searchName
+      );
+
+    if (
+      file.normalized ===
+      searchName
+    ) {
+      score =
+        Math.max(
+          score,
+          200
+        );
+    }
+
+    if (
+      simpleSearch &&
+      file.simplified ===
+        simpleSearch
+    ) {
+      score =
+        Math.max(
+          score,
+          180
+        );
+    }
+
+    if (
+      searchName.length >= 6 &&
+      (
+        file.normalized.includes(
+          searchName
+        ) ||
+        searchName.includes(
+          file.normalized
+        )
+      )
+    ) {
+      score =
+        Math.max(
+          score,
+          130
+        );
+    }
+
+    if (
+      simpleSearch.length >= 5 &&
+      (
+        file.simplified.includes(
+          simpleSearch
+        ) ||
+        simpleSearch.includes(
+          file.simplified
+        )
+      )
+    ) {
+      score =
+        Math.max(
+          score,
+          110
+        );
+    }
+  }
+
+  if (
+    file.normalized ===
+    requested
+  ) {
+    score += 20;
+  }
+
+  if (
+    requestedSimple &&
+    file.simplified ===
+      requestedSimple
+  ) {
+    score += 10;
+  }
+
+  return score;
+}
+
+/* =========================================================
+   PROTEÇÃO CONTRA NOMES AMBÍGUOS
+========================================================= */
+
+function ambiguousTeam(
+  teamName
+) {
+  const name =
+    normalizeName(teamName);
+
+  return [
+    "america",
+    "atletico",
+    "botafogo",
+    "nacional",
+    "operario",
+    "portuguesa",
+    "rio branco",
+    "sampaio correa",
+    "sao jose",
+    "sao raimundo",
+    "vitoria",
+    "ypiranga"
+  ].includes(name);
+}
+
+/* =========================================================
+   BUSCAR NA FONTE PRINCIPAL
+========================================================= */
+
+async function findRepositoryLogo(
+  teamName
+) {
+  const files =
+    await loadBrazilFiles();
+
+  const searchNames =
+    getSearchNames(
+      teamName
+    );
+
+  const candidates =
+    files
+      .map(
+        file => ({
+          file,
+
+          score:
+            fileScore(
+              teamName,
+              searchNames,
+              file
+            )
+        })
+      )
+      .filter(
+        candidate =>
+          candidate.score >=
+          110
+      )
+      .sort(
+        (a, b) =>
+          b.score -
+          a.score
+      );
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  const best =
+    candidates[0];
+
+  const tied =
+    candidates.filter(
+      candidate =>
+        candidate.score ===
+        best.score
+    );
+
+  /*
+    Se houver empate entre
+    arquivos diferentes,
+    não arriscamos.
+  */
+
+  if (
+    tied.length > 1
+  ) {
+    return null;
+  }
+
+  /*
+    Nome muito ambíguo só entra
+    com correspondência forte.
+  */
+
+  if (
+    ambiguousTeam(
+      teamName
+    ) &&
+    best.score < 180
+  ) {
+    return null;
+  }
+
+  const filename =
+    best.file.name;
+
+  const encodedFilename =
+    filename
+      .split("/")
+      .map(
+        encodeURIComponent
+      )
+      .join("/");
 
   return {
-    ok:
-      allowed.some(
-        item =>
-          license.includes(item)
-      ) ||
-      copyrighted === "false",
+    logo:
+      best.file.download_url ||
+      `${RAW_BASE}/${encodedFilename}`,
 
-    name:
-      metadataValue(
-        metadata,
-        "LicenseShortName"
-      ) || null,
+    source:
+      "JoseArroyave/football-logos",
 
-    url:
-      metadataValue(
-        metadata,
-        "LicenseUrl"
-      ) || null
+    source_page:
+      best.file.html_url ||
+      null,
+
+    license:
+      "Repository MIT; club marks may have separate trademark/copyright rights",
+
+    license_url:
+      "https://github.com/JoseArroyave/football-logos/blob/main/LICENSE",
+
+    verified:
+      true,
+
+    match_score:
+      best.score,
+
+    matched_file:
+      filename
   };
 }
 
-/* =========================
-   BUSCAR NO WIKIDATA
-========================= */
+/* =========================================================
+   WIKIDATA - FALLBACK
+========================================================= */
 
-async function searchWikidata(teamName) {
+async function searchWikidata(
+  teamName
+) {
   const params =
     new URLSearchParams({
-      action: "wbsearchentities",
-      search: teamName,
-      language: "pt",
-      uselang: "pt",
-      type: "item",
-      limit: "10",
-      format: "json",
-      origin: "*"
+      action:
+        "wbsearchentities",
+
+      search:
+        teamName,
+
+      language:
+        "pt",
+
+      uselang:
+        "pt",
+
+      type:
+        "item",
+
+      limit:
+        "10",
+
+      format:
+        "json",
+
+      origin:
+        "*"
     });
 
   const response =
@@ -110,36 +713,46 @@ async function searchWikidata(teamName) {
 
   if (!response.ok) {
     throw new Error(
-      `Wikidata busca ${response.status}`
+      `Wikidata ${response.status}`
     );
   }
 
   const data =
     await response.json();
 
-  return Array.isArray(data?.search)
+  return Array.isArray(
+    data?.search
+  )
     ? data.search
     : [];
 }
 
-/* =========================
-   DADOS DO ITEM WIKIDATA
-========================= */
-
-async function getWikidataEntities(ids) {
+async function getWikidataEntities(
+  ids
+) {
   if (!ids.length) {
     return {};
   }
 
   const params =
     new URLSearchParams({
-      action: "wbgetentities",
-      ids: ids.join("|"),
-      props: "claims|labels|descriptions|aliases|sitelinks",
-      languages: "pt|en",
-      sitefilter: "ptwiki|enwiki",
-      format: "json",
-      origin: "*"
+      action:
+        "wbgetentities",
+
+      ids:
+        ids.join("|"),
+
+      props:
+        "claims|labels|descriptions|aliases",
+
+      languages:
+        "pt|en",
+
+      format:
+        "json",
+
+      origin:
+        "*"
     });
 
   const response =
@@ -156,18 +769,21 @@ async function getWikidataEntities(ids) {
   const data =
     await response.json();
 
-  return data?.entities || {};
+  return (
+    data?.entities ||
+    {}
+  );
 }
 
-/* =========================
-   CLAIMS
-========================= */
-
-function claimEntityIds(entity, property) {
-  const claims =
-    entity?.claims?.[property] || [];
-
-  return claims
+function claimEntityIds(
+  entity,
+  property
+) {
+  return (
+    entity?.claims?.[
+      property
+    ] || []
+  )
     .map(
       claim =>
         claim?.mainsnak
@@ -178,21 +794,26 @@ function claimEntityIds(entity, property) {
     .filter(Boolean);
 }
 
-function claimCommonsFilename(
+function claimFilename(
   entity,
   property
 ) {
   const claims =
-    entity?.claims?.[property] || [];
+    entity?.claims?.[
+      property
+    ] || [];
 
-  for (const claim of claims) {
+  for (
+    const claim of claims
+  ) {
     const value =
       claim?.mainsnak
         ?.datavalue
         ?.value;
 
     if (
-      typeof value === "string" &&
+      typeof value ===
+        "string" &&
       value.trim()
     ) {
       return value.trim();
@@ -202,69 +823,28 @@ function claimCommonsFilename(
   return null;
 }
 
-/* =========================
-   VALIDAR BRASIL
-========================= */
+function isBrazilian(
+  entity
+) {
+  /*
+    P17 = país
+    Q155 = Brasil
+  */
 
-/*
-  Q155 = Brasil
-
-  P17 = país
-
-  Alguns clubes podem não ter
-  P17 preenchido. Nesse caso
-  também olhamos descrição e
-  página da Wikipédia.
-*/
-
-function looksBrazilian(entity) {
   const countries =
     claimEntityIds(
       entity,
       "P17"
     );
 
-  if (countries.includes("Q155")) {
-    return true;
-  }
-
-  const description =
-    normalizeName(
-      entity?.descriptions?.pt?.value ||
-      entity?.descriptions?.en?.value ||
-      ""
-    );
-
-  if (
-    description.includes("brasil") ||
-    description.includes("brazil")
-  ) {
-    return true;
-  }
-
-  const ptTitle =
-    normalizeName(
-      entity?.sitelinks
-        ?.ptwiki
-        ?.title || ""
-    );
-
-  if (
-    ptTitle.includes("futebol") ||
-    ptTitle.includes("esporte clube") ||
-    ptTitle.includes("futebol clube")
-  ) {
-    return true;
-  }
-
-  return false;
+  return countries.includes(
+    "Q155"
+  );
 }
 
-/* =========================
-   NOMES DO ITEM
-========================= */
-
-function entityNames(entity) {
+function wikidataNames(
+  entity
+) {
   const names = [];
 
   const pt =
@@ -273,24 +853,35 @@ function entityNames(entity) {
   const en =
     entity?.labels?.en?.value;
 
-  if (pt) names.push(pt);
-  if (en) names.push(en);
+  if (pt) {
+    names.push(pt);
+  }
+
+  if (en) {
+    names.push(en);
+  }
 
   for (
     const alias of
-    entity?.aliases?.pt || []
+    entity?.aliases?.pt ||
+    []
   ) {
     if (alias?.value) {
-      names.push(alias.value);
+      names.push(
+        alias.value
+      );
     }
   }
 
   for (
     const alias of
-    entity?.aliases?.en || []
+    entity?.aliases?.en ||
+    []
   ) {
     if (alias?.value) {
-      names.push(alias.value);
+      names.push(
+        alias.value
+      );
     }
   }
 
@@ -299,89 +890,75 @@ function entityNames(entity) {
   ];
 }
 
-/* =========================
-   PONTUAÇÃO DO CLUBE
-========================= */
-
-function entityScore(
-  requestedName,
-  searchResult,
+function wikidataScore(
+  teamName,
   entity
 ) {
-  const requested =
-    normalizeName(requestedName);
-
-  if (!requested) {
+  if (
+    !isBrazilian(entity)
+  ) {
     return 0;
   }
 
-  let score = 0;
-
-  const searchLabel =
-    normalizeName(
-      searchResult?.label || ""
+  const searchNames =
+    getSearchNames(
+      teamName
     );
 
-  const names =
-    entityNames(entity)
+  const entityNames =
+    wikidataNames(entity)
       .map(normalizeName)
       .filter(Boolean);
 
-  if (
-    names.includes(requested)
-  ) {
-    score += 100;
-  }
+  let score = 40;
 
-  if (
-    searchLabel === requested
+  for (
+    const wanted of
+    searchNames
   ) {
-    score += 80;
-  }
-
-  for (const name of names) {
     if (
-      name.includes(requested) ||
-      requested.includes(name)
+      entityNames.includes(
+        wanted
+      )
     ) {
-      score += 30;
-      break;
+      score =
+        Math.max(
+          score,
+          160
+        );
+    }
+
+    const wantedSimple =
+      stripClubWords(
+        wanted
+      );
+
+    for (
+      const entityName of
+      entityNames
+    ) {
+      const entitySimple =
+        stripClubWords(
+          entityName
+        );
+
+      if (
+        wantedSimple &&
+        entitySimple &&
+        wantedSimple ===
+          entitySimple
+      ) {
+        score =
+          Math.max(
+            score,
+            150
+          );
+      }
     }
   }
 
-  const description =
-    normalizeName(
-      searchResult?.description ||
-      entity?.descriptions?.pt?.value ||
-      entity?.descriptions?.en?.value ||
-      ""
-    );
-
   if (
-    description.includes("futebol") ||
-    description.includes("football")
-  ) {
-    score += 25;
-  }
-
-  if (looksBrazilian(entity)) {
-    score += 40;
-  } else {
-    /*
-      Para os Jogos do Escuro
-      brasileiros atuais, não
-      aceitamos item sem evidência
-      de ligação com o Brasil.
-    */
-    return 0;
-  }
-
-  /*
-    P154 = logotipo
-  */
-
-  if (
-    claimCommonsFilename(
+    claimFilename(
       entity,
       "P154"
     )
@@ -392,17 +969,42 @@ function entityScore(
   return score;
 }
 
-/* =========================
-   ESCOLHER ITEM WIKIDATA
-========================= */
-
 async function findWikidataTeam(
   teamName
 ) {
-  const searchResults =
-    await searchWikidata(
+  const searches =
+    getSearchNames(
       teamName
     );
+
+  const searchResults = [];
+
+  for (
+    const searchName of
+    searches.slice(0, 3)
+  ) {
+    const results =
+      await searchWikidata(
+        searchName
+      );
+
+    for (
+      const result of results
+    ) {
+      if (
+        result?.id &&
+        !searchResults.some(
+          existing =>
+            existing.id ===
+            result.id
+        )
+      ) {
+        searchResults.push(
+          result
+        );
+      }
+    }
+  }
 
   if (!searchResults.length) {
     return null;
@@ -410,7 +1012,9 @@ async function findWikidataTeam(
 
   const ids =
     searchResults
-      .map(item => item.id)
+      .map(
+        item => item.id
+      )
       .filter(Boolean);
 
   const entities =
@@ -421,29 +1025,18 @@ async function findWikidataTeam(
   const candidates = [];
 
   for (
-    const searchResult of
+    const result of
     searchResults
   ) {
     const entity =
-      entities[
-        searchResult.id
-      ];
+      entities[result.id];
 
-    if (!entity) continue;
-
-    const score =
-      entityScore(
-        teamName,
-        searchResult,
-        entity
-      );
-
-    if (score < 90) {
+    if (!entity) {
       continue;
     }
 
     const logoFile =
-      claimCommonsFilename(
+      claimFilename(
         entity,
         "P154"
       );
@@ -452,21 +1045,30 @@ async function findWikidataTeam(
       continue;
     }
 
+    const score =
+      wikidataScore(
+        teamName,
+        entity
+      );
+
+    if (score < 150) {
+      continue;
+    }
+
     candidates.push({
       id:
-        searchResult.id,
+        result.id,
 
-      score,
+      logoFile,
 
-      entity,
-
-      logoFile
+      score
     });
   }
 
   candidates.sort(
     (a, b) =>
-      b.score - a.score
+      b.score -
+      a.score
   );
 
   if (!candidates.length) {
@@ -476,47 +1078,116 @@ async function findWikidataTeam(
   const best =
     candidates[0];
 
-  /*
-    Se dois clubes diferentes
-    empatarem na pontuação,
-    não arriscamos.
-  */
-
   const tied =
     candidates.filter(
-      candidate =>
-        candidate.score ===
+      item =>
+        item.score ===
         best.score
     );
 
-  if (tied.length > 1) {
+  if (
+    tied.length > 1
+  ) {
     return null;
   }
 
   return best;
 }
 
-/* =========================
-   PEGAR ARQUIVO NO COMMONS
-========================= */
+/* =========================================================
+   LICENÇA COMMONS
+
+   Aqui corrigimos também o
+   problema da versão anterior:
+   só aceitamos licença explícita.
+========================================================= */
+
+function acceptedCommonsLicense(
+  metadata
+) {
+  const original =
+    metadataValue(
+      metadata,
+      "LicenseShortName"
+    );
+
+  const license =
+    original.toLowerCase();
+
+  if (!license) {
+    return {
+      ok: false,
+      name: null,
+      url: null
+    };
+  }
+
+  const allowed =
+    license === "cc0" ||
+    license.includes(
+      "public domain"
+    ) ||
+    license === "pd" ||
+    license.startsWith(
+      "cc by "
+    ) ||
+    license.startsWith(
+      "cc-by-"
+    ) ||
+    license.includes(
+      "cc by-sa"
+    ) ||
+    license.includes(
+      "cc-by-sa"
+    );
+
+  return {
+    ok:
+      allowed,
+
+    name:
+      original || null,
+
+    url:
+      metadataValue(
+        metadata,
+        "LicenseUrl"
+      ) || null
+  };
+}
 
 async function getCommonsLogo(
   filename
 ) {
   const title =
-    filename.startsWith("File:")
+    filename.startsWith(
+      "File:"
+    )
       ? filename
       : `File:${filename}`;
 
   const params =
     new URLSearchParams({
-      action: "query",
-      titles: title,
-      prop: "imageinfo",
-      iiprop: "url|extmetadata",
-      iiurlwidth: "256",
-      format: "json",
-      origin: "*"
+      action:
+        "query",
+
+      titles:
+        title,
+
+      prop:
+        "imageinfo",
+
+      iiprop:
+        "url|extmetadata",
+
+      iiurlwidth:
+        "256",
+
+      format:
+        "json",
+
+      origin:
+        "*"
     });
 
   const response =
@@ -526,7 +1197,7 @@ async function getCommonsLogo(
 
   if (!response.ok) {
     throw new Error(
-      `Commons imagem ${response.status}`
+      `Commons ${response.status}`
     );
   }
 
@@ -535,7 +1206,8 @@ async function getCommonsLogo(
 
   const pages =
     Object.values(
-      data?.query?.pages || {}
+      data?.query?.pages ||
+      {}
     );
 
   const page =
@@ -543,7 +1215,8 @@ async function getCommonsLogo(
 
   if (
     !page ||
-    page.missing !== undefined
+    page.missing !==
+      undefined
   ) {
     return null;
   }
@@ -555,12 +1228,9 @@ async function getCommonsLogo(
     return null;
   }
 
-  const metadata =
-    info.extmetadata || {};
-
   const license =
-    acceptedLicense(
-      metadata
+    acceptedCommonsLicense(
+      info.extmetadata || {}
     );
 
   if (!license.ok) {
@@ -597,9 +1267,44 @@ async function getCommonsLogo(
   };
 }
 
-/* =========================
+async function findCommonsFallback(
+  teamName
+) {
+  const team =
+    await findWikidataTeam(
+      teamName
+    );
+
+  if (!team) {
+    return null;
+  }
+
+  const logo =
+    await getCommonsLogo(
+      team.logoFile
+    );
+
+  if (!logo) {
+    return null;
+  }
+
+  return {
+    ...logo,
+
+    wikidata_id:
+      team.id,
+
+    wikidata_url:
+      `https://www.wikidata.org/wiki/${team.id}`,
+
+    match_score:
+      team.score
+  };
+}
+
+/* =========================================================
    FUNÇÃO PRINCIPAL
-========================= */
+========================================================= */
 
 export async function findExternalTeamLogo(
   teamName
@@ -625,98 +1330,70 @@ export async function findExternalTeamLogo(
     return cached.value;
   }
 
+  let result = null;
+
+  /*
+    1 - Repositório especializado
+  */
+
   try {
-    const team =
-      await findWikidataTeam(
+    result =
+      await findRepositoryLogo(
         teamName
       );
-
-    if (!team) {
-      cache.set(
-        key,
-        {
-          time:
-            Date.now(),
-
-          value:
-            null
-        }
-      );
-
-      return null;
-    }
-
-    const logo =
-      await getCommonsLogo(
-        team.logoFile
-      );
-
-    if (!logo) {
-      cache.set(
-        key,
-        {
-          time:
-            Date.now(),
-
-          value:
-            null
-        }
-      );
-
-      return null;
-    }
-
-    const result = {
-      ...logo,
-
-      wikidata_id:
-        team.id,
-
-      wikidata_url:
-        `https://www.wikidata.org/wiki/${team.id}`,
-
-      match_score:
-        team.score
-    };
-
-    cache.set(
-      key,
-      {
-        time:
-          Date.now(),
-
-        value:
-          result
-      }
-    );
-
-    return result;
-
   } catch (error) {
     console.error(
-      `[teamLogos v3] ${teamName}:`,
+      `[teamLogos v4 repository] ${teamName}:`,
       error.message
     );
-
-    cache.set(
-      key,
-      {
-        time:
-          Date.now(),
-
-        value:
-          null
-      }
-    );
-
-    return null;
   }
+
+  /*
+    2 - Wikidata / Commons
+  */
+
+  if (!result) {
+    try {
+      result =
+        await findCommonsFallback(
+          teamName
+        );
+    } catch (error) {
+      console.error(
+        `[teamLogos v4 commons] ${teamName}:`,
+        error.message
+      );
+    }
+  }
+
+  /*
+    Nada seguro encontrado:
+    deixa sem escudo.
+  */
+
+  cache.set(
+    key,
+    {
+      time:
+        Date.now(),
+
+      value:
+        result || null
+    }
+  );
+
+  return result || null;
 }
 
-/* =========================
+/* =========================================================
    LIMPAR CACHE
-========================= */
+========================================================= */
 
 export function clearTeamLogoCache() {
   cache.clear();
+
+  brazilFilesCache = {
+    time: 0,
+    files: null
+  };
 }
