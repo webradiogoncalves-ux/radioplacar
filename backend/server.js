@@ -79,7 +79,7 @@ function hojeUTC() {
 }
 
 /* =========================
-   BUSCAR TODAS AS PÁGINAS
+   TODAS AS PÁGINAS
 ========================= */
 
 async function getAllMatches(date) {
@@ -130,14 +130,14 @@ async function getAllMatches(date) {
 }
 
 /* =========================
-   PÁGINA INICIAL
+   INÍCIO
 ========================= */
 
 app.get("/", (req, res) => {
   res.json({
     app: "RádioPlacar API",
     status: "online",
-    version: "1.1.0"
+    version: "1.2.0"
   });
 });
 
@@ -154,7 +154,7 @@ app.get("/api/health", (req, res) => {
 });
 
 /* =========================
-   JOGOS AO VIVO
+   AO VIVO
 ========================= */
 
 app.get("/api/live", async (req, res) => {
@@ -173,10 +173,7 @@ app.get("/api/live", async (req, res) => {
 
     res.json(data);
   } catch (error) {
-    console.error(
-      "Erro /api/live:",
-      error.message
-    );
+    console.error("Erro /api/live:", error.message);
 
     res.status(500).json({
       error: true,
@@ -197,10 +194,7 @@ app.get("/api/today", async (req, res) => {
 
     res.json(data);
   } catch (error) {
-    console.error(
-      "Erro /api/today:",
-      error.message
-    );
+    console.error("Erro /api/today:", error.message);
 
     res.status(500).json({
       error: true,
@@ -215,15 +209,46 @@ app.get("/api/today", async (req, res) => {
 
 app.get("/api/matches", async (req, res) => {
   try {
-    const date =
-      req.query.date || hojeUTC();
+    const date = req.query.date || hojeUTC();
 
     const data = await getAllMatches(date);
 
     res.json(data);
   } catch (error) {
+    console.error("Erro /api/matches:", error.message);
+
+    res.status(500).json({
+      error: true,
+      message: error.message
+    });
+  }
+});
+
+/* =========================
+   COMPETIÇÕES / LIGAS
+========================= */
+
+app.get("/api/leagues", async (req, res) => {
+  try {
+    const cached = getCache(
+      "leagues",
+      30 * 60 * 1000
+    );
+
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const data = await apiRequest(
+      "/api/v2/leagues/"
+    );
+
+    setCache("leagues", data);
+
+    res.json(data);
+  } catch (error) {
     console.error(
-      "Erro /api/matches:",
+      "Erro /api/leagues:",
       error.message
     );
 
@@ -274,7 +299,7 @@ app.get("/api/fixture/:id", async (req, res) => {
 });
 
 /* =========================
-   CACHE INFO
+   CACHE
 ========================= */
 
 app.get("/api/cache", (req, res) => {
