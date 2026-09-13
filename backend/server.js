@@ -7,6 +7,11 @@ import {
   getDarkGame
 } from "./darkGames.js";
 
+import {
+  importDarkGames,
+  importAllDarkGames
+} from "./darkGamesSource.js";
+
 dotenv.config();
 
 const app = express();
@@ -50,7 +55,9 @@ function setCache(key, data) {
 
 async function apiRequest(pathOrUrl) {
   if (!API_KEY) {
-    throw new Error("API_FOOTBALL_KEY não configurada");
+    throw new Error(
+      "API_FOOTBALL_KEY não configurada"
+    );
   }
 
   const url = pathOrUrl.startsWith("http")
@@ -80,7 +87,9 @@ async function apiRequest(pathOrUrl) {
 ========================= */
 
 function hojeUTC() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date()
+    .toISOString()
+    .slice(0, 10);
 }
 
 /* =========================
@@ -90,7 +99,10 @@ function hojeUTC() {
 async function getAllMatches(date) {
   const cacheKey = `matches-${date}`;
 
-  const cached = getCache(cacheKey, 60000);
+  const cached = getCache(
+    cacheKey,
+    60000
+  );
 
   if (cached) {
     return cached;
@@ -107,15 +119,21 @@ async function getAllMatches(date) {
   let pages = 0;
 
   while (url && pages < 20) {
-    const data = await apiRequest(url);
+    const data =
+      await apiRequest(url);
 
     pages += 1;
 
     if (Array.isArray(data?.results)) {
-      allResults.push(...data.results);
+      allResults.push(
+        ...data.results
+      );
     }
 
-    if (typeof data?.count === "number") {
+    if (
+      typeof data?.count ===
+      "number"
+    ) {
       total = data.count;
     }
 
@@ -123,13 +141,22 @@ async function getAllMatches(date) {
   }
 
   const response = {
-    count: total || allResults.length,
-    returned: allResults.length,
+    count:
+      total || allResults.length,
+
+    returned:
+      allResults.length,
+
     pages,
-    results: allResults
+
+    results:
+      allResults
   };
 
-  setCache(cacheKey, response);
+  setCache(
+    cacheKey,
+    response
+  );
 
   return response;
 }
@@ -157,15 +184,21 @@ async function getAllLeagues() {
   let pages = 0;
 
   while (url && pages < 20) {
-    const data = await apiRequest(url);
+    const data =
+      await apiRequest(url);
 
     pages += 1;
 
     if (Array.isArray(data?.results)) {
-      allResults.push(...data.results);
+      allResults.push(
+        ...data.results
+      );
     }
 
-    if (typeof data?.count === "number") {
+    if (
+      typeof data?.count ===
+      "number"
+    ) {
       total = data.count;
     }
 
@@ -173,13 +206,22 @@ async function getAllLeagues() {
   }
 
   const response = {
-    count: total || allResults.length,
-    returned: allResults.length,
+    count:
+      total || allResults.length,
+
+    returned:
+      allResults.length,
+
     pages,
-    results: allResults
+
+    results:
+      allResults
   };
 
-  setCache("leagues-all", response);
+  setCache(
+    "leagues-all",
+    response
+  );
 
   return response;
 }
@@ -190,9 +232,14 @@ async function getAllLeagues() {
 
 app.get("/", (req, res) => {
   res.json({
-    app: "RádioPlacar API",
-    status: "online",
-    version: "1.4.0"
+    app:
+      "RádioPlacar API",
+
+    status:
+      "online",
+
+    version:
+      "1.5.0"
   });
 });
 
@@ -200,226 +247,391 @@ app.get("/", (req, res) => {
    HEALTH
 ========================= */
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    ok: true,
-    app: "radioplacar-api",
-    footballApi: Boolean(API_KEY)
-  });
-});
-
-/* =========================
-   JOGOS AO VIVO
-========================= */
-
-app.get("/api/live", async (req, res) => {
-  try {
-    const cached = getCache("live", 20000);
-
-    if (cached) {
-      return res.json(cached);
-    }
-
-    const data = await apiRequest(
-      "/api/v2/events/live/"
-    );
-
-    setCache("live", data);
-
-    res.json(data);
-  } catch (error) {
-    console.error(
-      "Erro /api/live:",
-      error.message
-    );
-
-    res.status(500).json({
-      error: true,
-      message: error.message
-    });
-  }
-});
-
-/* =========================
-   JOGOS DE HOJE
-========================= */
-
-app.get("/api/today", async (req, res) => {
-  try {
-    const date = hojeUTC();
-
-    const data = await getAllMatches(date);
-
-    res.json(data);
-  } catch (error) {
-    console.error(
-      "Erro /api/today:",
-      error.message
-    );
-
-    res.status(500).json({
-      error: true,
-      message: error.message
-    });
-  }
-});
-
-/* =========================
-   JOGOS POR DATA
-========================= */
-
-app.get("/api/matches", async (req, res) => {
-  try {
-    const date =
-      req.query.date || hojeUTC();
-
-    const data = await getAllMatches(date);
-
-    res.json(data);
-  } catch (error) {
-    console.error(
-      "Erro /api/matches:",
-      error.message
-    );
-
-    res.status(500).json({
-      error: true,
-      message: error.message
-    });
-  }
-});
-
-/* =========================
-   TODAS AS COMPETIÇÕES
-========================= */
-
-app.get("/api/leagues", async (req, res) => {
-  try {
-    const data = await getAllLeagues();
-
-    res.json(data);
-  } catch (error) {
-    console.error(
-      "Erro /api/leagues:",
-      error.message
-    );
-
-    res.status(500).json({
-      error: true,
-      message: error.message
-    });
-  }
-});
-
-/* =========================
-   DETALHE DA PARTIDA
-========================= */
-
-app.get("/api/fixture/:id", async (req, res) => {
-  try {
-    const id = req.params.id;
-
-    const cacheKey = `fixture-${id}`;
-
-    const cached = getCache(
-      cacheKey,
-      30000
-    );
-
-    if (cached) {
-      return res.json(cached);
-    }
-
-    const data = await apiRequest(
-      `/api/v2/events/${id}/`
-    );
-
-    setCache(cacheKey, data);
-
-    res.json(data);
-  } catch (error) {
-    console.error(
-      "Erro /api/fixture:",
-      error.message
-    );
-
-    res.status(500).json({
-      error: true,
-      message: error.message
-    });
-  }
-});
-
-/* =========================
-   JOGOS DO ESCURO
-   SEPARADO DA BSD
-========================= */
-
-app.get("/api/dark-games", (req, res) => {
-  try {
-    const date = req.query.date || null;
-
-    const games = getDarkGames(date);
-
+app.get(
+  "/api/health",
+  (req, res) => {
     res.json({
-      source: "dark-games",
-      count: games.length,
-      results: games
-    });
-  } catch (error) {
-    console.error(
-      "Erro /api/dark-games:",
-      error.message
-    );
+      ok: true,
 
-    res.status(500).json({
-      error: true,
-      message: error.message
+      app:
+        "radioplacar-api",
+
+      footballApi:
+        Boolean(API_KEY)
     });
   }
-});
+);
 
-app.get("/api/dark-games/:id", (req, res) => {
-  try {
-    const game = getDarkGame(req.params.id);
+/* =========================
+   JOGOS AO VIVO BSD
+========================= */
 
-    if (!game) {
-      return res.status(404).json({
+app.get(
+  "/api/live",
+  async (req, res) => {
+    try {
+      const cached =
+        getCache(
+          "live",
+          20000
+        );
+
+      if (cached) {
+        return res.json(
+          cached
+        );
+      }
+
+      const data =
+        await apiRequest(
+          "/api/v2/events/live/"
+        );
+
+      setCache(
+        "live",
+        data
+      );
+
+      res.json(data);
+
+    } catch (error) {
+      console.error(
+        "Erro /api/live:",
+        error.message
+      );
+
+      res.status(500).json({
         error: true,
-        message: "Jogo não encontrado"
+        message:
+          error.message
       });
     }
-
-    res.json(game);
-  } catch (error) {
-    console.error(
-      "Erro /api/dark-games/:id:",
-      error.message
-    );
-
-    res.status(500).json({
-      error: true,
-      message: error.message
-    });
   }
-});
+);
+
+/* =========================
+   JOGOS DE HOJE BSD
+========================= */
+
+app.get(
+  "/api/today",
+  async (req, res) => {
+    try {
+      const date =
+        hojeUTC();
+
+      const data =
+        await getAllMatches(
+          date
+        );
+
+      res.json(data);
+
+    } catch (error) {
+      console.error(
+        "Erro /api/today:",
+        error.message
+      );
+
+      res.status(500).json({
+        error: true,
+        message:
+          error.message
+      });
+    }
+  }
+);
+
+/* =========================
+   JOGOS BSD POR DATA
+========================= */
+
+app.get(
+  "/api/matches",
+  async (req, res) => {
+    try {
+      const date =
+        req.query.date ||
+        hojeUTC();
+
+      const data =
+        await getAllMatches(
+          date
+        );
+
+      res.json(data);
+
+    } catch (error) {
+      console.error(
+        "Erro /api/matches:",
+        error.message
+      );
+
+      res.status(500).json({
+        error: true,
+        message:
+          error.message
+      });
+    }
+  }
+);
+
+/* =========================
+   LIGAS BSD
+========================= */
+
+app.get(
+  "/api/leagues",
+  async (req, res) => {
+    try {
+      const data =
+        await getAllLeagues();
+
+      res.json(data);
+
+    } catch (error) {
+      console.error(
+        "Erro /api/leagues:",
+        error.message
+      );
+
+      res.status(500).json({
+        error: true,
+        message:
+          error.message
+      });
+    }
+  }
+);
+
+/* =========================
+   DETALHE BSD
+========================= */
+
+app.get(
+  "/api/fixture/:id",
+  async (req, res) => {
+    try {
+      const id =
+        req.params.id;
+
+      const cacheKey =
+        `fixture-${id}`;
+
+      const cached =
+        getCache(
+          cacheKey,
+          30000
+        );
+
+      if (cached) {
+        return res.json(
+          cached
+        );
+      }
+
+      const data =
+        await apiRequest(
+          `/api/v2/events/${id}/`
+        );
+
+      setCache(
+        cacheKey,
+        data
+      );
+
+      res.json(data);
+
+    } catch (error) {
+      console.error(
+        "Erro /api/fixture:",
+        error.message
+      );
+
+      res.status(500).json({
+        error: true,
+        message:
+          error.message
+      });
+    }
+  }
+);
+
+/* =========================
+   IMPORTAR TODOS OS
+   JOGOS DO ESCURO
+========================= */
+
+app.get(
+  "/api/dark-games/import",
+  async (req, res) => {
+    try {
+      const result =
+        await importAllDarkGames();
+
+      res.json({
+        ok: true,
+
+        source:
+          "FootballData",
+
+        imports:
+          result
+      });
+
+    } catch (error) {
+      console.error(
+        "Erro import dark-games:",
+        error.message
+      );
+
+      res.status(500).json({
+        error: true,
+        message:
+          error.message
+      });
+    }
+  }
+);
+
+/* =========================
+   IMPORTAR UMA COMPETIÇÃO
+========================= */
+
+app.get(
+  "/api/dark-games/import/:source",
+  async (req, res) => {
+    try {
+      const result =
+        await importDarkGames(
+          req.params.source
+        );
+
+      res.json({
+        ok: true,
+        ...result
+      });
+
+    } catch (error) {
+      console.error(
+        "Erro import competição:",
+        error.message
+      );
+
+      res.status(500).json({
+        error: true,
+        message:
+          error.message
+      });
+    }
+  }
+);
+
+/* =========================
+   LISTAR JOGOS DO ESCURO
+========================= */
+
+app.get(
+  "/api/dark-games",
+  (req, res) => {
+    try {
+      const date =
+        req.query.date ||
+        null;
+
+      const games =
+        getDarkGames(date);
+
+      res.json({
+        source:
+          "dark-games",
+
+        count:
+          games.length,
+
+        results:
+          games
+      });
+
+    } catch (error) {
+      console.error(
+        "Erro /api/dark-games:",
+        error.message
+      );
+
+      res.status(500).json({
+        error: true,
+        message:
+          error.message
+      });
+    }
+  }
+);
+
+/* =========================
+   DETALHE JOGO DO ESCURO
+========================= */
+
+app.get(
+  "/api/dark-games/:id",
+  (req, res) => {
+    try {
+      const game =
+        getDarkGame(
+          req.params.id
+        );
+
+      if (!game) {
+        return res
+          .status(404)
+          .json({
+            error: true,
+            message:
+              "Jogo não encontrado"
+          });
+      }
+
+      res.json(game);
+
+    } catch (error) {
+      console.error(
+        "Erro /api/dark-games/:id:",
+        error.message
+      );
+
+      res.status(500).json({
+        error: true,
+        message:
+          error.message
+      });
+    }
+  }
+);
 
 /* =========================
    CACHE
 ========================= */
 
-app.get("/api/cache", (req, res) => {
-  res.json({
-    entries: cache.size
-  });
-});
+app.get(
+  "/api/cache",
+  (req, res) => {
+    res.json({
+      entries:
+        cache.size
+    });
+  }
+);
 
 /* =========================
    SERVIDOR
 ========================= */
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `RádioPlacar API rodando na porta ${PORT}`
-  );
-});
+app.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+    console.log(
+      `RádioPlacar API rodando na porta ${PORT}`
+    );
+  }
+);
