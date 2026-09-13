@@ -14,6 +14,12 @@ const API =
   import.meta.env.VITE_API_BASE ||
   "https://radioplacar-api.onrender.com/api";
 
+const IMAGE_BASE = "https://sports.bzzoiro.com/img";
+
+/* =========================
+   DADOS DA API
+========================= */
+
 function getResults(data) {
   if (!data) return [];
 
@@ -35,6 +41,10 @@ function getResults(data) {
 
   return [];
 }
+
+/* =========================
+   STATUS
+========================= */
 
 function isLive(status) {
   const value = String(status || "").toLowerCase();
@@ -60,6 +70,10 @@ function isFinished(status) {
   ].includes(value);
 }
 
+/* =========================
+   HORÁRIO
+========================= */
+
 function formatTime(dateString) {
   if (!dateString) return "--:--";
 
@@ -75,6 +89,40 @@ function formatTime(dateString) {
   });
 }
 
+/* =========================
+   ESCUDO DO TIME
+========================= */
+
+function TeamLogo({ teamId, teamName }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!teamId || failed) {
+    return (
+      <span>
+        {teamName?.slice(0, 1)?.toUpperCase() || "?"}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={`${IMAGE_BASE}/team/${teamId}/?bg=transparent`}
+      alt={teamName || "Time"}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      style={{
+        width: "38px",
+        height: "38px",
+        objectFit: "contain"
+      }}
+    />
+  );
+}
+
+/* =========================
+   CARD DA PARTIDA
+========================= */
+
 function MatchCard({ match }) {
   const live = isLive(match.status);
   const finished = isFinished(match.status);
@@ -85,29 +133,63 @@ function MatchCard({ match }) {
   const hasScore =
     live ||
     finished ||
-    homeScore !== null && homeScore !== undefined ||
-    awayScore !== null && awayScore !== undefined;
+    homeScore != null ||
+    awayScore != null;
 
   return (
     <div className="match-card">
       <div className="competition">
-        <span>
-          <Trophy size={12} /> Liga #{match.league_id || "-"}
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px"
+          }}
+        >
+          {match.league_id && (
+            <img
+              src={`${IMAGE_BASE}/league/${match.league_id}/?bg=transparent`}
+              alt=""
+              loading="lazy"
+              style={{
+                width: "18px",
+                height: "18px",
+                objectFit: "contain"
+              }}
+            />
+          )}
+
+          <Trophy size={12} />
+
+          <span>
+            Liga #{match.league_id || "-"}
+          </span>
         </span>
 
-        {live && <span className="live-badge">AO VIVO</span>}
+        {live && (
+          <span className="live-badge">
+            AO VIVO
+          </span>
+        )}
       </div>
 
       <div className="teams">
+        {/* TIME DA CASA */}
+
         <div className="team">
           <div className="team-logo">
-            {match.home_team?.slice(0, 1)?.toUpperCase() || "?"}
+            <TeamLogo
+              teamId={match.home_team_id}
+              teamName={match.home_team}
+            />
           </div>
 
           <div className="team-name">
             {match.home_team || "Mandante"}
           </div>
         </div>
+
+        {/* PLACAR */}
 
         <div className="score">
           <div className="score-number">
@@ -127,9 +209,14 @@ function MatchCard({ match }) {
           </div>
         </div>
 
+        {/* TIME VISITANTE */}
+
         <div className="team">
           <div className="team-logo">
-            {match.away_team?.slice(0, 1)?.toUpperCase() || "?"}
+            <TeamLogo
+              teamId={match.away_team_id}
+              teamName={match.away_team}
+            />
           </div>
 
           <div className="team-name">
@@ -141,54 +228,91 @@ function MatchCard({ match }) {
   );
 }
 
+/* =========================
+   APLICATIVO
+========================= */
+
 function App() {
   const [matches, setMatches] = useState([]);
   const [liveMatches, setLiveMatches] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [playing, setPlaying] = useState(false);
+
+  const [playing] = useState(false);
+
+  /* =========================
+     CARREGAR JOGOS
+  ========================= */
 
   async function loadData() {
     try {
       setLoading(true);
       setError("");
 
-      const [todayResponse, liveResponse] = await Promise.all([
-        fetch(`${API}/today`),
-        fetch(`${API}/live`)
-      ]);
+      const [todayResponse, liveResponse] =
+        await Promise.all([
+          fetch(`${API}/today`),
+          fetch(`${API}/live`)
+        ]);
 
       if (!todayResponse.ok) {
-        throw new Error("Erro ao carregar jogos de hoje");
+        throw new Error(
+          "Erro ao carregar jogos de hoje"
+        );
       }
 
       if (!liveResponse.ok) {
-        throw new Error("Erro ao carregar jogos ao vivo");
+        throw new Error(
+          "Erro ao carregar jogos ao vivo"
+        );
       }
 
-      const todayData = await todayResponse.json();
-      const liveData = await liveResponse.json();
+      const todayData =
+        await todayResponse.json();
+
+      const liveData =
+        await liveResponse.json();
 
       setMatches(getResults(todayData));
       setLiveMatches(getResults(liveData));
     } catch (err) {
       console.error(err);
-      setError("Não foi possível carregar os jogos agora.");
+
+      setError(
+        "Não foi possível carregar os jogos agora."
+      );
     } finally {
       setLoading(false);
     }
   }
 
+  /* =========================
+     ATUALIZAÇÃO AUTOMÁTICA
+  ========================= */
+
   useEffect(() => {
     loadData();
 
-    const timer = setInterval(loadData, 30000);
+    const timer = setInterval(() => {
+      loadData();
+    }, 30000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+    };
   }, []);
 
+  /* =========================
+     IDENTIFICAR AO VIVO
+  ========================= */
+
   const liveIds = useMemo(() => {
-    return new Set(liveMatches.map((match) => String(match.id)));
+    return new Set(
+      liveMatches.map((match) =>
+        String(match.id)
+      )
+    );
   }, [liveMatches]);
 
   const normalizedMatches = useMemo(() => {
@@ -196,7 +320,10 @@ function App() {
       if (liveIds.has(String(match.id))) {
         return {
           ...match,
-          status: match.status || "live"
+          status:
+            match.status === "notstarted"
+              ? "live"
+              : match.status
         };
       }
 
@@ -204,8 +331,20 @@ function App() {
     });
   }, [matches, liveIds]);
 
+  const liveCount = useMemo(() => {
+    return normalizedMatches.filter((match) =>
+      isLive(match.status)
+    ).length;
+  }, [normalizedMatches]);
+
+  /* =========================
+     TELA
+  ========================= */
+
   return (
     <div className="app">
+      {/* CABEÇALHO */}
+
       <header className="header">
         <div className="brand">
           <div className="brand-name">
@@ -218,11 +357,13 @@ function App() {
         </div>
 
         <div className="header-live">
-          AO VIVO
+          AO VIVO {liveCount > 0 ? liveCount : ""}
         </div>
       </header>
 
       <main className="content">
+        {/* DESTAQUE */}
+
         <section className="hero">
           <div className="hero-small">
             FUTEBOL + RÁDIO
@@ -233,10 +374,12 @@ function App() {
           </h1>
 
           <p>
-            Acompanhe os jogos do dia e, em breve,
-            ouça as rádios oficiais dentro do aplicativo.
+            Acompanhe os jogos reais do dia e os
+            placares atualizados pelo RádioPlacar.
           </p>
         </section>
+
+        {/* JOGOS */}
 
         <div className="section-title">
           <h2>JOGOS DE HOJE</h2>
@@ -275,6 +418,8 @@ function App() {
             />
           ))}
 
+        {/* RÁDIOS */}
+
         <div className="section-title">
           <h2>RÁDIOS AO VIVO</h2>
 
@@ -294,8 +439,8 @@ function App() {
             </div>
 
             <div className="radio-status">
-              As rádios oficiais serão adicionadas
-              depois de verificarmos os links reais.
+              As rádios serão adicionadas somente
+              com transmissões reais verificadas.
             </div>
           </div>
 
@@ -308,6 +453,8 @@ function App() {
             <Play size={17} />
           </button>
         </div>
+
+        {/* ATUALIZAR */}
 
         <button
           type="button"
@@ -336,6 +483,8 @@ function App() {
         </button>
       </main>
 
+      {/* PLAYER FIXO */}
+
       <div className="player">
         <div className="player-icon">
           <Radio size={21} />
@@ -354,7 +503,6 @@ function App() {
         <button
           type="button"
           className="player-button"
-          onClick={() => setPlaying(!playing)}
           disabled
           aria-label="Player ainda não disponível"
         >
@@ -368,6 +516,10 @@ function App() {
     </div>
   );
 }
+
+/* =========================
+   INICIAR REACT
+========================= */
 
 ReactDOM.createRoot(
   document.getElementById("root")
