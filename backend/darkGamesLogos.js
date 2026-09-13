@@ -20,122 +20,345 @@ function normalizeName(value) {
 }
 
 async function resolveTeam(teamName) {
-  const key = normalizeName(teamName);
+  const key =
+    normalizeName(teamName);
 
-  if (!key) return null;
+  if (!key) {
+    return null;
+  }
 
-  if (resolvedTeams.has(key)) {
-    return resolvedTeams.get(key);
+  if (
+    resolvedTeams.has(key)
+  ) {
+    return resolvedTeams.get(
+      key
+    );
   }
 
   const result =
-    await findExternalTeamLogo(teamName);
+    await findExternalTeamLogo(
+      teamName
+    );
 
-  resolvedTeams.set(key, result);
+  resolvedTeams.set(
+    key,
+    result
+  );
 
   return result;
 }
 
-function mergeTeam(team, logoData) {
+function mergeTeam(
+  team,
+  logoData
+) {
   if (!logoData?.logo) {
     return team;
   }
 
   return {
     ...team,
-    logo: logoData.logo,
+
+    logo:
+      logoData.logo,
 
     logo_source:
-      logoData.source || null,
+      logoData.source ||
+      null,
 
     logo_source_page:
-      logoData.source_page || null,
+      logoData.source_page ||
+      null,
 
     logo_license:
-      logoData.license || null,
+      logoData.license ||
+      null,
 
     logo_license_url:
-      logoData.license_url || null,
+      logoData.license_url ||
+      null,
 
     logo_verified:
-      logoData.verified === true
+      logoData.verified ===
+      true,
+
+    wikidata_id:
+      logoData.wikidata_id ||
+      null,
+
+    wikidata_url:
+      logoData.wikidata_url ||
+      null
   };
 }
 
+/* =========================
+   TIMES ÚNICOS
+========================= */
+
+function getUniqueTeams(
+  games
+) {
+  const teams =
+    new Map();
+
+  for (
+    const game of games
+  ) {
+    const home =
+      game?.home?.name;
+
+    const away =
+      game?.away?.name;
+
+    if (home) {
+      const key =
+        normalizeName(home);
+
+      if (
+        key &&
+        !teams.has(key)
+      ) {
+        teams.set(
+          key,
+          home
+        );
+      }
+    }
+
+    if (away) {
+      const key =
+        normalizeName(away);
+
+      if (
+        key &&
+        !teams.has(key)
+      ) {
+        teams.set(
+          key,
+          away
+        );
+      }
+    }
+  }
+
+  return [
+    ...teams.values()
+  ].sort(
+    (a, b) =>
+      a.localeCompare(
+        b,
+        "pt-BR"
+      )
+  );
+}
+
+/* =========================
+   ENRIQUECER ESCUDOS
+========================= */
+
 export async function enrichDarkGameLogos() {
-  const games = getDarkGames();
+  const games =
+    getDarkGames();
+
+  const uniqueTeams =
+    getUniqueTeams(
+      games
+    );
+
+  /*
+    Primeiro resolvemos cada
+    clube somente UMA vez.
+
+    Isso também deixa o
+    diagnóstico muito mais
+    claro.
+  */
+
+  const teamResults =
+    new Map();
+
+  const foundTeams = [];
+  const missingTeams = [];
+
+  for (
+    const teamName of
+    uniqueTeams
+  ) {
+    let logoData =
+      null;
+
+    try {
+      logoData =
+        await resolveTeam(
+          teamName
+        );
+    } catch (error) {
+      console.error(
+        `[darkGamesLogos] ${teamName}:`,
+        error.message
+      );
+    }
+
+    const key =
+      normalizeName(
+        teamName
+      );
+
+    teamResults.set(
+      key,
+      logoData
+    );
+
+    if (
+      logoData?.logo
+    ) {
+      foundTeams.push({
+        name:
+          teamName,
+
+        logo:
+          logoData.logo,
+
+        source:
+          logoData.source ||
+          null,
+
+        wikidata_id:
+          logoData.wikidata_id ||
+          null,
+
+        license:
+          logoData.license ||
+          null
+      });
+
+    } else {
+      missingTeams.push(
+        teamName
+      );
+    }
+  }
+
+  /* =========================
+     APLICAR NOS JOGOS
+  ========================= */
 
   let updatedGames = 0;
   let homeLogos = 0;
   let awayLogos = 0;
-  let notFound = 0;
+  let notFoundOccurrences = 0;
 
-  for (const game of games) {
-    let homeLogo = null;
-    let awayLogo = null;
-
-    try {
-      homeLogo =
-        await resolveTeam(game.home?.name);
-    } catch (error) {
-      console.error(
-        `[darkGamesLogos] casa ${game.home?.name}:`,
-        error.message
+  for (
+    const game of games
+  ) {
+    const homeKey =
+      normalizeName(
+        game?.home?.name
       );
-    }
 
-    try {
-      awayLogo =
-        await resolveTeam(game.away?.name);
-    } catch (error) {
-      console.error(
-        `[darkGamesLogos] fora ${game.away?.name}:`,
-        error.message
+    const awayKey =
+      normalizeName(
+        game?.away?.name
       );
-    }
 
-    if (homeLogo?.logo) {
+    const homeLogo =
+      teamResults.get(
+        homeKey
+      ) || null;
+
+    const awayLogo =
+      teamResults.get(
+        awayKey
+      ) || null;
+
+    if (
+      homeLogo?.logo
+    ) {
       homeLogos += 1;
     } else {
-      notFound += 1;
+      notFoundOccurrences += 1;
     }
 
-    if (awayLogo?.logo) {
+    if (
+      awayLogo?.logo
+    ) {
       awayLogos += 1;
     } else {
-      notFound += 1;
+      notFoundOccurrences += 1;
     }
 
-    if (!homeLogo?.logo && !awayLogo?.logo) {
+    if (
+      !homeLogo?.logo &&
+      !awayLogo?.logo
+    ) {
       continue;
     }
 
     saveDarkGame({
       ...game,
 
-      home: mergeTeam(
-        game.home,
-        homeLogo
-      ),
+      home:
+        mergeTeam(
+          game.home,
+          homeLogo
+        ),
 
-      away: mergeTeam(
-        game.away,
-        awayLogo
-      )
+      away:
+        mergeTeam(
+          game.away,
+          awayLogo
+        )
     });
 
     updatedGames += 1;
   }
 
+  /* =========================
+     RESULTADO / DIAGNÓSTICO
+  ========================= */
+
   return {
-    games: games.length,
-    updated_games: updatedGames,
-    home_logos: homeLogos,
-    away_logos: awayLogos,
-    not_found: notFound,
-    source: "Wikimedia Commons"
+    games:
+      games.length,
+
+    unique_teams:
+      uniqueTeams.length,
+
+    found_teams:
+      foundTeams.length,
+
+    missing_teams_count:
+      missingTeams.length,
+
+    updated_games:
+      updatedGames,
+
+    home_logos:
+      homeLogos,
+
+    away_logos:
+      awayLogos,
+
+    not_found_occurrences:
+      notFoundOccurrences,
+
+    source:
+      "Wikidata / Wikimedia Commons",
+
+    found_team_names:
+      foundTeams.map(
+        team => team.name
+      ),
+
+    missing_teams:
+      missingTeams
   };
 }
+
+/* =========================
+   LIMPAR CACHE
+========================= */
 
 export function clearResolvedTeamCache() {
   resolvedTeams.clear();
