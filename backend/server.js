@@ -79,7 +79,7 @@ function hojeUTC() {
 }
 
 /* =========================
-   TODAS AS PÁGINAS
+   TODAS AS PÁGINAS DOS JOGOS
 ========================= */
 
 async function getAllMatches(date) {
@@ -101,7 +101,7 @@ async function getAllMatches(date) {
   let total = 0;
   let pages = 0;
 
-  while (url && pages < 10) {
+  while (url && pages < 20) {
     const data = await apiRequest(url);
 
     pages += 1;
@@ -130,6 +130,56 @@ async function getAllMatches(date) {
 }
 
 /* =========================
+   TODAS AS PÁGINAS DAS LIGAS
+========================= */
+
+async function getAllLeagues() {
+  const cached = getCache(
+    "leagues-all",
+    30 * 60 * 1000
+  );
+
+  if (cached) {
+    return cached;
+  }
+
+  let url =
+    "/api/v2/leagues/?limit=50&offset=0";
+
+  const allResults = [];
+
+  let total = 0;
+  let pages = 0;
+
+  while (url && pages < 20) {
+    const data = await apiRequest(url);
+
+    pages += 1;
+
+    if (Array.isArray(data?.results)) {
+      allResults.push(...data.results);
+    }
+
+    if (typeof data?.count === "number") {
+      total = data.count;
+    }
+
+    url = data?.next || null;
+  }
+
+  const response = {
+    count: total || allResults.length,
+    returned: allResults.length,
+    pages,
+    results: allResults
+  };
+
+  setCache("leagues-all", response);
+
+  return response;
+}
+
+/* =========================
    INÍCIO
 ========================= */
 
@@ -137,7 +187,7 @@ app.get("/", (req, res) => {
   res.json({
     app: "RádioPlacar API",
     status: "online",
-    version: "1.2.0"
+    version: "1.3.0"
   });
 });
 
@@ -154,7 +204,7 @@ app.get("/api/health", (req, res) => {
 });
 
 /* =========================
-   AO VIVO
+   JOGOS AO VIVO
 ========================= */
 
 app.get("/api/live", async (req, res) => {
@@ -173,7 +223,10 @@ app.get("/api/live", async (req, res) => {
 
     res.json(data);
   } catch (error) {
-    console.error("Erro /api/live:", error.message);
+    console.error(
+      "Erro /api/live:",
+      error.message
+    );
 
     res.status(500).json({
       error: true,
@@ -194,7 +247,10 @@ app.get("/api/today", async (req, res) => {
 
     res.json(data);
   } catch (error) {
-    console.error("Erro /api/today:", error.message);
+    console.error(
+      "Erro /api/today:",
+      error.message
+    );
 
     res.status(500).json({
       error: true,
@@ -209,13 +265,17 @@ app.get("/api/today", async (req, res) => {
 
 app.get("/api/matches", async (req, res) => {
   try {
-    const date = req.query.date || hojeUTC();
+    const date =
+      req.query.date || hojeUTC();
 
     const data = await getAllMatches(date);
 
     res.json(data);
   } catch (error) {
-    console.error("Erro /api/matches:", error.message);
+    console.error(
+      "Erro /api/matches:",
+      error.message
+    );
 
     res.status(500).json({
       error: true,
@@ -225,25 +285,12 @@ app.get("/api/matches", async (req, res) => {
 });
 
 /* =========================
-   COMPETIÇÕES / LIGAS
+   TODAS AS COMPETIÇÕES
 ========================= */
 
 app.get("/api/leagues", async (req, res) => {
   try {
-    const cached = getCache(
-      "leagues",
-      30 * 60 * 1000
-    );
-
-    if (cached) {
-      return res.json(cached);
-    }
-
-    const data = await apiRequest(
-      "/api/v2/leagues/"
-    );
-
-    setCache("leagues", data);
+    const data = await getAllLeagues();
 
     res.json(data);
   } catch (error) {
