@@ -1,12 +1,18 @@
-import { saveDarkGame } from "./darkGames.js";
+import {
+  saveDarkGame
+} from "./darkGames.js";
 
 /*
   RÁDIOPLACAR
-  Fonte complementar para jogos fora da BSD.
+  Jogos do Escuro
 
-  - Não interfere na BSD.
-  - Não marca jogo como AO VIVO sozinho.
-  - Não inventa placar.
+  Fonte complementar:
+  FootballData
+
+  - NÃO usa BSD.
+  - NÃO interfere nos jogos BSD.
+  - NÃO inventa placar.
+  - Limpa nomes defeituosos da fonte.
 */
 
 const RAW_BASE =
@@ -14,34 +20,118 @@ const RAW_BASE =
 
 const SOURCES = {
   "serie-c": {
-    competition: "Brasileirão Série C",
+    competition:
+      "Brasileirão Série C",
+
     file:
       "brasil-serie-c/brasil-serie-c%202026.json"
   },
 
   "serie-d": {
-    competition: "Brasileirão Série D",
+    competition:
+      "Brasileirão Série D",
+
     file:
       "brasil-serie-d/brasil-serie-d%202026.json"
   }
 };
 
 /* =========================================================
+   LIMPAR NOME DE CLUBE
+========================================================= */
+
+function cleanTeamName(value) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+  let text =
+    String(value)
+      .replace(/\r/g, "\n")
+      .trim();
+
+  /*
+    A fonte possui casos como:
+
+    Azuriz
+    2
+
+    Paysandu
+    2
+
+    CRAC
+    4
+
+    Esses números são resíduos
+    da origem dos dados.
+  */
+
+  text =
+    text.replace(
+      /\n+\s*\d+\s*$/g,
+      ""
+    );
+
+  /*
+    Também protege contra:
+
+    "Azuriz  \n  2"
+  */
+
+  text =
+    text.replace(
+      /\s+\d+\s*$/g,
+      match => {
+        /*
+          Não removemos número
+          quando o nome inteiro
+          for numérico.
+
+          Para os clubes atuais,
+          esse caso não ocorre,
+          mas evita limpeza cega.
+        */
+        return "";
+      }
+    );
+
+  /*
+    Troca quebras restantes
+    por espaço.
+  */
+
+  text =
+    text
+      .replace(/\n+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  if (!text) {
+    return null;
+  }
+
+  return text;
+}
+
+/* =========================================================
    NORMALIZAR DATA
-   05.04.2026 18:00
-   ->
-   2026-04-05T18:00:00
 ========================================================= */
 
 function normalizeDate(value) {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
 
   const text =
     String(value).trim();
 
-  const match = text.match(
-    /^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?$/
-  );
+  const match =
+    text.match(
+      /^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}))?$/
+    );
 
   if (match) {
     const [
@@ -59,15 +149,14 @@ function normalizeDate(value) {
     );
   }
 
-  /*
-    Caso futuramente a fonte
-    já envie uma data ISO.
-  */
-
   const parsed =
     new Date(text);
 
-  if (!Number.isNaN(parsed.getTime())) {
+  if (
+    !Number.isNaN(
+      parsed.getTime()
+    )
+  ) {
     return parsed.toISOString();
   }
 
@@ -75,38 +164,85 @@ function normalizeDate(value) {
 }
 
 /* =========================================================
-   ID ÚNICO
+   VALIDAR PLACAR
 ========================================================= */
 
-function makeId(
-  source,
-  match,
-  normalizedDate
-) {
-  const text = [
-    source,
-    normalizedDate ||
-      match.match_date,
-    match.home,
-    match.away
-  ]
-    .join("-")
-    .toLowerCase()
+function parseGoals(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const text =
+    String(value).trim();
+
+  if (!text) {
+    return null;
+  }
+
+  const number =
+    Number(text);
+
+  if (
+    !Number.isInteger(number) ||
+    number < 0
+  ) {
+    return null;
+  }
+
+  return number;
+}
+
+/* =========================================================
+   NORMALIZAR PARA ID
+========================================================= */
+
+function normalizeIdPart(value) {
+  return String(value || "")
     .normalize("NFD")
     .replace(
       /[\u0300-\u036f]/g,
       ""
     )
+    .toLowerCase()
     .replace(
       /[^a-z0-9]+/g,
       "-"
     )
     .replace(
-      /^-|-$/g,
+      /^-+|-+$/g,
       ""
     );
+}
 
-  return `dark-${text}`;
+/* =========================================================
+   CRIAR ID
+========================================================= */
+
+function makeId(
+  source,
+  date,
+  home,
+  away
+) {
+  const parts = [
+    source,
+    date,
+    home,
+    away
+  ]
+    .map(
+      normalizeIdPart
+    )
+    .filter(Boolean);
+
+  return (
+    "dark-" +
+    parts.join("-")
+  );
 }
 
 /* =========================================================
@@ -120,79 +256,101 @@ function normalizeMatch(
   const config =
     SOURCES[source];
 
+  if (!config) {
+    return null;
+  }
+
+  const homeName =
+    cleanTeamName(
+      match?.home
+    );
+
+  const awayName =
+    cleanTeamName(
+      match?.away
+    );
+
+  const date =
+    normalizeDate(
+      match?.match_date
+    );
+
   if (
-    !match?.match_date ||
-    !match?.home ||
-    !match?.away
+    !homeName ||
+    !awayName ||
+    !date
   ) {
     return null;
   }
 
-  const date =
-    normalizeDate(
-      match.match_date
-    );
-
-  if (!date) {
-    return null;
-  }
-
   const homeGoals =
-    Number(
-      match.goals_home
+    parseGoals(
+      match?.goals_home
     );
 
   const awayGoals =
-    Number(
-      match.goals_away
+    parseGoals(
+      match?.goals_away
     );
 
   const hasScore =
-    Number.isInteger(
-      homeGoals
-    ) &&
-    Number.isInteger(
-      awayGoals
-    );
+    homeGoals !== null &&
+    awayGoals !== null;
 
   return {
-    id: makeId(
-      source,
-      match,
-      date
-    ),
+    id:
+      makeId(
+        source,
+        date,
+        homeName,
+        awayName
+      ),
 
     source:
       "FootballData",
 
     competition: {
-      id: source,
+      id:
+        source,
+
       name:
         config.competition,
+
       country:
         "Brazil"
     },
 
     home: {
-      id: null,
+      id:
+        null,
+
       name:
-        match.home,
-      logo: null
+        homeName,
+
+      logo:
+        null
     },
 
     away: {
-      id: null,
+      id:
+        null,
+
       name:
-        match.away,
-      logo: null
+        awayName,
+
+      logo:
+        null
     },
 
     date,
 
     /*
-      FootballData não será usada
-      para afirmar que está AO VIVO.
-    */
+      FootballData não define
+      jogo AO VIVO no RádioPlacar.
+
+      Se existe placar final na
+      fonte, usamos como histórico.
+  */
 
     status:
       hasScore
@@ -221,7 +379,10 @@ function normalizeMatch(
         : 0,
 
     score_verified:
-      hasScore
+      hasScore,
+
+    radio:
+      null
   };
 }
 
@@ -245,15 +406,18 @@ async function downloadSource(
     `${RAW_BASE}/${config.file}`;
 
   const response =
-    await fetch(url, {
-      headers: {
-        Accept:
-          "application/json",
+    await fetch(
+      url,
+      {
+        headers: {
+          Accept:
+            "application/json",
 
-        "User-Agent":
-          "RadioPlacar"
+          "User-Agent":
+            "RadioPlacar"
+        }
       }
-    });
+    );
 
   if (!response.ok) {
     throw new Error(
@@ -264,7 +428,9 @@ async function downloadSource(
   const data =
     await response.json();
 
-  if (!Array.isArray(data)) {
+  if (
+    !Array.isArray(data)
+  ) {
     throw new Error(
       "Formato inesperado da FootballData"
     );
@@ -274,7 +440,7 @@ async function downloadSource(
 }
 
 /* =========================================================
-   IMPORTAR COMPETIÇÃO
+   IMPORTAR UMA COMPETIÇÃO
 ========================================================= */
 
 export async function importDarkGames(
@@ -317,6 +483,7 @@ export async function importDarkGames(
         .competition,
 
     imported,
+
     ignored
   };
 }
