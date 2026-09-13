@@ -1,344 +1,587 @@
-/*
-  RÁDIOPLACAR
-  Jogos do Escuro
-  Escudos externos - v5
+// backend/teamLogos.js
+// RádioPlacar - Jogos do Escuro
+// v6
+//
+// NÃO usa BSD.
+// 1) Mapeamento direto para clubes confirmados.
+// 2) Consulta a pasta Brazil do repositório externo.
+// 3) Faz comparação normalizada e conservadora.
+// 4) Em empate/ambiguidade, NÃO escolhe escudo.
+//
+// "verified" significa identidade do clube conferida pelo algoritmo/mapeamento.
+// NÃO significa que a marca/escudo esteja livre de direitos de terceiros.
 
-  TESTE CONTROLADO
-
-  Não usa BSD.
-  Não pesquisa lista pela API do GitHub.
-  Usa arquivos já confirmados no repositório.
-
-  Primeira etapa:
-  - ABC
-  - Amazonas
-  - América-RN
-  - Anápolis
-  - Araguaína
-  - Aparecidense
-  - Altos-PI
-  - Iguatu
-  - Maguary
-*/
-
-const REPOSITORY =
-  "JoseArroyave/football-logos";
+const REPO_OWNER = "JoseArroyave";
+const REPO_NAME = "football-logos";
+const BRANCH = "main";
 
 const RAW_BASE =
-  "https://raw.githubusercontent.com/JoseArroyave/football-logos/main/logos/brazil";
+  `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/logos/brazil`;
 
 const PAGE_BASE =
-  "https://github.com/JoseArroyave/football-logos/blob/main/logos/brazil";
+  `https://github.com/${REPO_OWNER}/${REPO_NAME}/blob/${BRANCH}/logos/brazil`;
 
-/*
-  IMPORTANTE:
+const API_DIR =
+  `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/logos/brazil`;
 
-  Aqui usamos apenas nomes de arquivos
-  que foram confirmados na pasta Brasil
-  do repositório.
+const CACHE_TIME = 24 * 60 * 60 * 1000;
 
-  A chave é o nome normalizado que vem
-  do nosso FootballData.
-*/
+let brazilFilesCache = null;
+let brazilFilesCacheAt = 0;
 
-const VERIFIED_LOGOS = {
-  "abc": {
-    file: "ABC_Futebol_Clube.svg",
-    club: "ABC Futebol Clube"
-  },
+const resultCache = new Map();
 
-  "amazonas": {
-    file: "Amazonas.svg",
-    club: "Amazonas Futebol Clube"
-  },
 
-  "america rn": {
-    file: "América_de_Natal.svg",
-    club: "América Futebol Clube - RN"
-  },
+// ============================================================
+// NORMALIZAÇÃO
+// ============================================================
 
-  "anapolis": {
-    file: "Anápolis.svg",
-    club: "Anápolis Futebol Clube"
-  },
-
-  "araguaina": {
-    file: "Araguaína_Futebol_e_Regatas.svg",
-    club: "Araguaína Futebol e Regatas"
-  },
-
-  "aparecidense": {
-    file: "Associação_Atlética_Aparecidense.svg",
-    club: "Associação Atlética Aparecidense"
-  },
-
-  "altos pi": {
-    file: "Associação_Atlética_de_Altos.svg",
-    club: "Associação Atlética de Altos"
-  },
-
-  "iguatu": {
-    file: "Associação_Desportiva_Iguatu.svg",
-    club: "Associação Desportiva Iguatu"
-  },
-
-  "maguary": {
-    file: "Associação_Atlética_Maguary.svg",
-    club: "Associação Atlética Maguary"
-  }
-};
-
-/*
-  Cache simples para não processar
-  o mesmo time várias vezes.
-*/
-
-const cache = new Map();
-
-/* =========================================================
-   NORMALIZAÇÃO
-========================================================= */
-
-function normalizeName(value) {
+function normalize(value) {
   return String(value || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/&/g, " e ")
+    .replace(/[_-]+/g, " ")
+    .replace(/\.(svg|png|webp)$/i, "")
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-/* =========================================================
-   CODIFICAR CAMINHO DO ARQUIVO
-========================================================= */
 
-function encodeFilename(filename) {
-  return String(filename || "")
-    .split("/")
-    .map(part => encodeURIComponent(part))
-    .join("/");
+function compact(value) {
+  return normalize(value).replace(/\s+/g, "");
 }
 
-/* =========================================================
-   NOMES ALTERNATIVOS DO FOOTBALLDATA
 
-   Somente aliases que identificam
-   exatamente o mesmo clube.
-========================================================= */
+// ============================================================
+// CLUBES CONFIRMADOS
+// ============================================================
+//
+// Mantemos os 9 que já passaram no teste e acrescentamos
+// somente nomes de arquivo que já foram confirmados na coleção.
+//
 
-const INPUT_ALIASES = {
-  "abc futebol clube": "abc",
+const VERIFIED_LOGOS = {
 
-  "amazonas fc": "amazonas",
-  "amazonas futebol clube": "amazonas",
+  // ----- já testados na v5 -----
 
-  "america de natal": "america rn",
-  "america futebol clube natal": "america rn",
+  "abc": "ABC_Futebol_Clube.svg",
 
-  "anapolis fc": "anapolis",
-  "anapolis futebol clube": "anapolis",
+  "amazonas": "Amazonas.svg",
 
-  "araguaina futebol e regatas": "araguaina",
+  "america rn": "América_de_Natal.svg",
+  "america de natal": "América_de_Natal.svg",
 
-  "associacao atletica aparecidense": "aparecidense",
+  "anapolis": "Anápolis.svg",
 
-  "altos": "altos pi",
-  "associacao atletica de altos": "altos pi",
+  "aparecidense": "Associação_Atlética_Aparecidense.svg",
 
-  "associacao desportiva iguatu": "iguatu",
+  "araguaina": "Araguaína_Futebol_e_Regatas.svg",
 
-  "associacao atletica maguary": "maguary"
+  "altos pi": "Associação_Atlética_de_Altos.svg",
+  "altos": "Associação_Atlética_de_Altos.svg",
+
+  "iguatu": "Associação_Desportiva_Iguatu.svg",
+
+  "maguary": "Associação_Atlética_Maguary.svg",
+
+
+  // ----- confirmados na coleção brasileira -----
+
+  "aguia de maraba": "Águia_de_Marabá.svg",
+
+  "botafogo pb": "Botafogo-PB.svg",
+
+  "brasiliense": "Brasiliense.svg",
+
+  "brusque": "Brusque.svg",
+
+  "capital df": "Capital-DF.svg",
+
+  "caxias": "Caxias.svg",
+
+  "ceilandia": "Ceilândia.svg",
+
+  "central": "Central.svg",
+
+  "confianca": "Confiança.svg",
+
+  "ferroviaria": "Ferroviária.svg",
+
+  "ferroviario": "Ferroviário.svg",
+
+  "figueirense": "Figueirense.svg",
+
+  "floresta": "Floresta.svg",
+
+  "fluminense pi": "Fluminense-PI.svg",
+
+  "galvez": "Galvez.svg",
+
+  "gama": "Gama.svg",
+
+  "gas": "GAS.svg",
+
+  "guapore": "Guaporé.svg",
+
+  "guarani": "Guarani.svg",
+
+  "iape": "Iape.svg",
+
+  "independencia": "Independência.svg",
+
+  "inhumas": "Inhumas.svg",
+
+  "internacional de limeira": "Internacional_de_Limeira.svg",
+  "inter de limeira": "Internacional_de_Limeira.svg",
+
+  "itabaiana": "Itabaiana.svg",
+
+  "ituano": "Ituano.svg",
+
+  "laguna rn": "Laguna-RN.svg",
+
+  "luverdense": "Luverdense.svg",
+
+  "manauara": "Manauara.svg",
+
+  "manaus": "Manaus.svg",
+
+  "maracana": "Maracanã.svg",
+
+  "maranhao": "Maranhão.svg",
+
+  "maringa": "Maringá.svg",
+
+  "mixto": "Mixto.svg",
+
+  "monte roraima": "Monte_Roraima.svg",
+
+  "moto club": "Moto_Club.svg",
+
+  "nacional am": "Nacional-AM.svg",
+
+  "oratorio": "Oratório.svg",
+
+  "parnahyba": "Parnahyba.svg",
+
+  "paysandu": "Paysandu.svg",
+
+  "piaui": "Piauí.svg",
+
+  "porto velho": "Porto_Velho.svg",
+
+  "primavera": "Primavera.svg",
+
+  "sampaio correa": "Sampaio_Corrêa.svg",
+
+  "santa cruz": "Santa_Cruz.svg",
+
+  "sao raimundo rr": "São_Raimundo-RR.svg",
+
+  "sousa": "Sousa.svg",
+
+  "tirol": "Tirol.svg",
+
+  "tocantinopolis": "Tocantinópolis.svg",
+
+  "trem": "Trem.svg",
+
+  "tuna luso": "Tuna_Luso.svg",
+
+  "uniao rondonopolis": "União_Rondonópolis.svg",
+
+  "volta redonda": "Volta_Redonda.svg",
+
+  "ypiranga": "Ypiranga.svg"
 };
 
-/* =========================================================
-   DESCOBRIR CHAVE DO CLUBE
-========================================================= */
 
-function resolveKey(teamName) {
-  const normalized =
-    normalizeName(teamName);
+// ============================================================
+// NOMES QUE NÃO PODEM SER ESCOLHIDOS POR APROXIMAÇÃO
+// ============================================================
+//
+// Esses clubes possuem nomes que podem apontar para equipes diferentes.
+// Só usamos se houver mapeamento EXATO.
+//
 
-  if (!normalized) {
-    return null;
-  }
+const AMBIGUOUS = new Set([
+  "america",
+  "atletico",
+  "botafogo",
+  "operario",
+  "portuguesa",
+  "rio branco",
+  "sampaio correa rj",
+  "sao jose",
+  "sao joseense",
+  "vitoria",
+  "nacional",
+  "porto"
+]);
 
-  /*
-    Primeiro tenta exatamente como
-    aparece no FootballData.
-  */
 
-  if (VERIFIED_LOGOS[normalized]) {
-    return normalized;
-  }
+// ============================================================
+// RESULTADO
+// ============================================================
 
-  /*
-    Depois tenta os aliases seguros.
-  */
+function makeResult(teamName, fileName, method = "verified-map") {
 
-  const alias =
-    INPUT_ALIASES[normalized];
-
-  if (
-    alias &&
-    VERIFIED_LOGOS[alias]
-  ) {
-    return alias;
-  }
-
-  return null;
-}
-
-/* =========================================================
-   MONTAR RESULTADO
-========================================================= */
-
-function buildLogoResult(
-  teamName,
-  key,
-  item
-) {
-  const encoded =
-    encodeFilename(item.file);
+  const encoded = encodeURIComponent(fileName);
 
   return {
-    logo:
-      `${RAW_BASE}/${encoded}`,
+    team: teamName,
 
-    source:
-      REPOSITORY,
+    logo: `${RAW_BASE}/${encoded}`,
 
-    source_page:
-      `${PAGE_BASE}/${encoded}`,
+    source: "JoseArroyave/football-logos",
 
-    /*
-      A licença do repositório é uma
-      coisa; marcas/escudos dos clubes
-      podem possuir direitos próprios.
-
-      Não estamos afirmando que a marca
-      do clube é MIT.
-    */
+    source_page: `${PAGE_BASE}/${encoded}`,
 
     license:
       "Repository MIT; club crest/trademark rights may belong to the respective club",
 
     license_url:
-      "https://github.com/JoseArroyave/football-logos/blob/main/LICENSE",
-
-    /*
-      verified = correspondência do
-      TIME com o ARQUIVO confirmada.
-
-      Não significa liberação comercial
-      da marca.
-    */
+      `https://github.com/${REPO_OWNER}/${REPO_NAME}/blob/${BRANCH}/LICENSE`,
 
     verified: true,
 
-    matched_team:
-      item.club,
-
-    requested_team:
-      teamName,
-
-    matched_file:
-      item.file,
-
-    match_method:
-      "verified-direct-map",
-
-    /*
-      Mantemos estes campos para
-      compatibilidade com o restante
-      do RádioPlacar.
-    */
+    verification_method: method,
 
     wikidata_id: null,
     wikidata_url: null
   };
 }
 
-/* =========================================================
-   FUNÇÃO USADA PELO darkGamesLogos.js
-========================================================= */
 
-export async function findExternalTeamLogo(
-  teamName
-) {
-  const normalized =
-    normalizeName(teamName);
+// ============================================================
+// BUSCAR LISTA DE SVGs
+// ============================================================
 
-  if (!normalized) {
+async function getBrazilFiles() {
+
+  const now = Date.now();
+
+  if (
+    brazilFilesCache &&
+    now - brazilFilesCacheAt < CACHE_TIME
+  ) {
+    return brazilFilesCache;
+  }
+
+  try {
+
+    const response = await fetch(API_DIR, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "RadioPlacar"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `GitHub directory HTTP ${response.status}`
+      );
+    }
+
+    const data = await response.json();
+
+    if (!Array.isArray(data)) {
+      throw new Error("Resposta inesperada do GitHub");
+    }
+
+    const files = data
+      .filter(
+        item =>
+          item?.type === "file" &&
+          /\.svg$/i.test(item?.name || "")
+      )
+      .map(item => ({
+        name: item.name,
+        normalized: normalize(item.name),
+        compact: compact(item.name)
+      }));
+
+    brazilFilesCache = files;
+    brazilFilesCacheAt = now;
+
+    console.log(
+      `[teamLogos] ${files.length} SVGs brasileiros carregados`
+    );
+
+    return files;
+
+  } catch (error) {
+
+    console.error(
+      "[teamLogos] Falha ao carregar diretório GitHub:",
+      error.message
+    );
+
+    // A falha da API NÃO derruba os escudos do mapa direto.
+    return brazilFilesCache || [];
+  }
+}
+
+
+// ============================================================
+// MAPA DIRETO
+// ============================================================
+
+function findVerified(teamName) {
+
+  const key = normalize(teamName);
+
+  const file = VERIFIED_LOGOS[key];
+
+  if (!file) return null;
+
+  return makeResult(
+    teamName,
+    file,
+    "verified-map"
+  );
+}
+
+
+// ============================================================
+// PONTUAÇÃO CONSERVADORA
+// ============================================================
+
+function similarityScore(teamName, file) {
+
+  const team = normalize(teamName);
+  const candidate = file.normalized;
+
+  const teamCompact = compact(teamName);
+  const candidateCompact = file.compact;
+
+  if (!team || !candidate) return 0;
+
+
+  // correspondência perfeita
+  if (team === candidate) {
+    return 1000;
+  }
+
+
+  // perfeita ignorando espaços/hífen/underscore
+  if (teamCompact === candidateCompact) {
+    return 950;
+  }
+
+
+  const teamWords =
+    team.split(" ").filter(Boolean);
+
+  const candidateWords =
+    candidate.split(" ").filter(Boolean);
+
+
+  // Para nome curto, não aceitamos aproximação.
+  if (
+    teamWords.length === 1 &&
+    team.length <= 5
+  ) {
+    return 0;
+  }
+
+
+  let score = 0;
+
+
+  // candidato começa com o nome completo do clube
+  if (
+    candidate.startsWith(`${team} `)
+  ) {
+    score += 500;
+  }
+
+
+  // nome do clube começa com candidato
+  if (
+    team.startsWith(`${candidate} `)
+  ) {
+    score += 450;
+  }
+
+
+  // palavras iguais
+  const common =
+    teamWords.filter(
+      word => candidateWords.includes(word)
+    );
+
+  score += common.length * 100;
+
+
+  // exige que praticamente todas as palavras importantes
+  // estejam presentes
+  const important =
+    teamWords.filter(word => word.length >= 4);
+
+  const importantMatched =
+    important.filter(
+      word => candidateWords.includes(word)
+    );
+
+
+  if (
+    important.length > 0 &&
+    importantMatched.length === important.length
+  ) {
+    score += 250;
+  }
+
+
+  // penaliza candidato muito diferente
+  const difference =
+    Math.abs(
+      candidateWords.length -
+      teamWords.length
+    );
+
+  score -= difference * 20;
+
+
+  return score;
+}
+
+
+// ============================================================
+// BUSCA AUTOMÁTICA SEGURA
+// ============================================================
+
+async function findSafeAutomatic(teamName) {
+
+  const key = normalize(teamName);
+
+  if (!key) return null;
+
+
+  // Não fazemos aproximação nesses nomes.
+  if (AMBIGUOUS.has(key)) {
     return null;
   }
 
-  /*
-    Retorna cache se já foi pesquisado.
-  */
 
-  if (cache.has(normalized)) {
-    return cache.get(normalized);
+  const files = await getBrazilFiles();
+
+  if (!files.length) {
+    return null;
   }
 
-  const key =
-    resolveKey(teamName);
 
-  /*
-    Nesta fase não inventamos
-    e não fazemos busca aproximada.
+  const ranked = files
+    .map(file => ({
+      file,
+      score: similarityScore(teamName, file)
+    }))
+    .filter(item => item.score >= 700)
+    .sort((a, b) => b.score - a.score);
 
-    Se não está no mapa confirmado,
-    fica sem escudo.
-  */
+
+  if (!ranked.length) {
+    return null;
+  }
+
+
+  const first = ranked[0];
+  const second = ranked[1];
+
+
+  // Se os dois melhores forem muito próximos,
+  // consideramos ambíguo.
+  if (
+    second &&
+    first.score - second.score < 100
+  ) {
+
+    console.warn(
+      `[teamLogos] Ambíguo: ${teamName} -> ` +
+      `${first.file.name} / ${second.file.name}`
+    );
+
+    return null;
+  }
+
+
+  return makeResult(
+    teamName,
+    first.file.name,
+    "safe-directory-match"
+  );
+}
+
+
+// ============================================================
+// FUNÇÃO PRINCIPAL
+// ============================================================
+
+export async function findExternalTeamLogo(teamName) {
+
+  const key = normalize(teamName);
 
   if (!key) {
-    cache.set(
-      normalized,
-      null
-    );
-
     return null;
   }
 
-  const item =
-    VERIFIED_LOGOS[key];
 
-  const result =
-    buildLogoResult(
-      teamName,
+  if (resultCache.has(key)) {
+    return resultCache.get(key);
+  }
+
+
+  // 1. Primeiro o mapa confirmado.
+  const verified = findVerified(teamName);
+
+  if (verified) {
+
+    resultCache.set(
       key,
-      item
+      verified
     );
 
-  cache.set(
-    normalized,
-    result
+    return verified;
+  }
+
+
+  // 2. Depois busca automática conservadora.
+  let automatic = null;
+
+  try {
+
+    automatic =
+      await findSafeAutomatic(teamName);
+
+  } catch (error) {
+
+    console.error(
+      `[teamLogos] ${teamName}:`,
+      error.message
+    );
+  }
+
+
+  resultCache.set(
+    key,
+    automatic
   );
 
-  return result;
+  return automatic;
 }
 
-/* =========================================================
-   LIMPAR CACHE
-========================================================= */
+
+// ============================================================
+// LIMPAR CACHE
+// ============================================================
 
 export function clearTeamLogoCache() {
-  cache.clear();
-}
 
-/* =========================================================
-   DIAGNÓSTICO OPCIONAL
-========================================================= */
+  resultCache.clear();
 
-export function getVerifiedLogoMap() {
-  return Object.entries(
-    VERIFIED_LOGOS
-  ).map(
-    ([key, value]) => ({
-      key,
-      club: value.club,
-      file: value.file
-    })
-  );
+  brazilFilesCache = null;
+  brazilFilesCacheAt = 0;
 }
