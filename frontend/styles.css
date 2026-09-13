@@ -35,6 +35,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
 .app {
   width: 100%;
   max-width: 720px;
@@ -43,7 +48,9 @@ button {
   padding-bottom: 110px;
 }
 
-/* CABEÇALHO */
+/* =========================
+   CABEÇALHO
+========================= */
 
 .header {
   padding: 20px 18px 16px;
@@ -82,19 +89,32 @@ button {
   background: #e62b22;
   font-size: 11px;
   font-weight: 900;
+  box-shadow: 0 5px 18px rgba(230, 43, 34, 0.25);
 }
 
-/* CONTEÚDO */
+/* =========================
+   CONTEÚDO
+========================= */
 
 .content {
   padding: 0 16px 30px;
 }
 
+/* =========================
+   DESTAQUE
+========================= */
+
 .hero {
   margin: 8px 0 22px;
   padding: 22px 18px;
   border-radius: 24px;
-  background: linear-gradient(135deg, #0e5a96, #0b2a55 58%, #ff7a00);
+  background:
+    linear-gradient(
+      135deg,
+      #0e5a96 0%,
+      #0b2a55 58%,
+      #ff7a00 100%
+    );
   box-shadow: 0 16px 35px rgba(0, 0, 0, 0.25);
 }
 
@@ -119,7 +139,9 @@ button {
   line-height: 1.45;
 }
 
-/* TÍTULOS */
+/* =========================
+   TÍTULOS DAS SEÇÕES
+========================= */
 
 .section-title {
   margin: 22px 2px 12px;
@@ -143,7 +165,9 @@ button {
   font-weight: 800;
 }
 
-/* JOGOS */
+/* =========================
+   CARD DOS JOGOS
+========================= */
 
 .match-card {
   margin-bottom: 12px;
@@ -165,14 +189,34 @@ button {
   text-transform: uppercase;
 }
 
+.competition > span:first-child {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.competition img {
+  flex: 0 0 auto;
+  display: block;
+  object-fit: contain;
+}
+
 .live-badge {
+  flex: 0 0 auto;
+  margin-left: 8px;
   padding: 5px 8px;
   border-radius: 12px;
   background: #e62b22;
-  color: white;
+  color: #ffffff;
   font-size: 9px;
   font-weight: 900;
+  box-shadow: 0 4px 14px rgba(230, 43, 34, 0.25);
 }
+
+/* =========================
+   TIMES
+========================= */
 
 .teams {
   display: grid;
@@ -186,43 +230,74 @@ button {
   text-align: center;
 }
 
+/* =========================
+   ESCUDOS REAIS
+========================= */
+
 .team-logo {
-  width: 46px;
-  height: 46px;
-  margin: 0 auto 7px;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 8px;
   display: grid;
   place-items: center;
+  overflow: hidden;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.13),
+      rgba(255, 255, 255, 0.04)
+    );
+  border: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 20px;
   font-weight: 900;
+  color: #ffffff;
+}
+
+.team-logo img {
+  width: 40px !important;
+  height: 40px !important;
+  max-width: 40px;
+  max-height: 40px;
+  display: block;
+  object-fit: contain !important;
 }
 
 .team-name {
   overflow: hidden;
+  color: #ffffff;
   font-size: 12px;
   font-weight: 800;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* =========================
+   PLACAR
+========================= */
 
 .score {
   text-align: center;
 }
 
 .score-number {
+  color: #ffffff;
   font-size: 25px;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .score-time {
-  margin-top: 3px;
+  margin-top: 4px;
   color: #ff9b3d;
   font-size: 10px;
   font-weight: 800;
 }
 
-/* RÁDIOS */
+/* =========================
+   RÁDIOS
+========================= */
 
 .radio-card {
   margin-bottom: 10px;
@@ -243,6 +318,7 @@ button {
   place-items: center;
   border-radius: 14px;
   background: #0e5a96;
+  color: #ffffff;
   font-size: 20px;
 }
 
@@ -252,6 +328,7 @@ button {
 }
 
 .radio-name {
+  color: #ffffff;
   font-size: 13px;
   font-weight: 900;
 }
@@ -260,20 +337,24 @@ button {
   margin-top: 3px;
   color: #8fb8df;
   font-size: 10px;
+  line-height: 1.35;
 }
 
 .play-button {
   width: 40px;
   height: 40px;
+  flex: 0 0 40px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: #ff7a00;
-  color: white;
+  color: #ffffff;
   font-size: 16px;
 }
 
-/* PLAYER FIXO */
+/* =========================
+   PLAYER FIXO
+========================= */
 
 .player {
   position: fixed;
@@ -290,6 +371,7 @@ button {
   background: rgba(4, 16, 32, 0.97);
   border-top: 1px solid rgba(255, 122, 0, 0.35);
   backdrop-filter: blur(14px);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.25);
 }
 
 .player-icon {
@@ -300,6 +382,7 @@ button {
   place-items: center;
   border-radius: 13px;
   background: linear-gradient(135deg, #0e5a96, #ff7a00);
+  color: #ffffff;
   font-size: 19px;
 }
 
@@ -310,6 +393,7 @@ button {
 
 .player-station {
   overflow: hidden;
+  color: #ffffff;
   font-size: 12px;
   font-weight: 900;
   text-overflow: ellipsis;
@@ -333,11 +417,13 @@ button {
   place-items: center;
   border-radius: 50%;
   background: #ff7a00;
-  color: white;
+  color: #ffffff;
   font-size: 17px;
 }
 
-/* ESTADOS */
+/* =========================
+   CARREGANDO / ERRO
+========================= */
 
 .loading,
 .empty,
@@ -356,6 +442,10 @@ button {
   border: 1px solid rgba(230, 43, 34, 0.25);
 }
 
+/* =========================
+   CELULAR
+========================= */
+
 @media (max-width: 420px) {
   .header {
     padding-left: 14px;
@@ -367,15 +457,42 @@ button {
     padding-right: 12px;
   }
 
+  .brand-name {
+    font-size: 22px;
+  }
+
+  .hero {
+    padding: 19px 16px;
+  }
+
   .hero h1 {
     font-size: 24px;
   }
 
   .teams {
-    grid-template-columns: 1fr 62px 1fr;
+    grid-template-columns: 1fr 64px 1fr;
+    gap: 5px;
+  }
+
+  .team-logo {
+    width: 48px;
+    height: 48px;
+  }
+
+  .team-logo img {
+    width: 37px !important;
+    height: 37px !important;
+  }
+
+  .team-name {
+    font-size: 11px;
   }
 
   .score-number {
     font-size: 22px;
+  }
+
+  .match-card {
+    padding: 13px 10px;
   }
 }
