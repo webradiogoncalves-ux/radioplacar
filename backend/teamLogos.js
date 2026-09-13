@@ -1,3 +1,6 @@
+const WIKIDATA_API =
+  "https://www.wikidata.org/w/api.php";
+
 const COMMONS_API =
   "https://commons.wikimedia.org/w/api.php";
 
@@ -5,88 +8,6 @@ const CACHE_MS =
   24 * 60 * 60 * 1000;
 
 const cache = new Map();
-
-/* =========================
-   ALIASES DE CLUBES
-========================= */
-
-const TEAM_ALIASES = {
-  "sampaio correa rj": [
-    "sampaio correa rj",
-    "sampaio correa futebol e esporte",
-    "sampaio correa futebol e esporte rj"
-  ],
-
-  "portuguesa rj": [
-    "portuguesa rj",
-    "associacao atletica portuguesa",
-    "aa portuguesa rj"
-  ],
-
-  "portuguesa sp": [
-    "portuguesa sp",
-    "associacao portuguesa de desportos",
-    "portuguesa de desportos"
-  ],
-
-  "sao jose rs": [
-    "sao jose rs",
-    "esporte clube sao jose",
-    "ec sao jose rs"
-  ],
-
-  "sao joseense": [
-    "sao joseense",
-    "independente futebol sao joseense"
-  ],
-
-  "america rn": [
-    "america rn",
-    "america futebol clube rn",
-    "america de natal"
-  ],
-
-  "america rj": [
-    "america rj",
-    "america football club rio de janeiro"
-  ],
-
-  "america mg": [
-    "america mg",
-    "america futebol clube belo horizonte",
-    "america mineiro"
-  ],
-
-  "treze": [
-    "treze",
-    "treze futebol clube"
-  ],
-
-  "abc": [
-    "abc",
-    "abc futebol clube"
-  ],
-
-  "asa": [
-    "asa",
-    "agremiacao sportiva arapiraquense"
-  ],
-
-  "csa": [
-    "csa",
-    "centro sportivo alagoano"
-  ],
-
-  "cse": [
-    "cse",
-    "clube sociedade esportiva"
-  ],
-
-  "iape": [
-    "iape",
-    "instituto de administracao de projetos educacionais"
-  ]
-};
 
 /* =========================
    NORMALIZAÇÃO
@@ -97,13 +18,6 @@ function normalizeName(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/football club/g, "")
-    .replace(/futebol clube/g, "")
-    .replace(/esporte clube/g, "")
-    .replace(/sport club/g, "")
-    .replace(/associacao atletica/g, "")
-    .replace(/associacao desportiva/g, "")
-    .replace(/clube de regatas/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -118,10 +32,7 @@ function stripHtml(value) {
     .trim();
 }
 
-function metadataValue(
-  metadata,
-  key
-) {
+function metadataValue(metadata, key) {
   return stripHtml(
     metadata?.[key]?.value || ""
   );
@@ -132,7 +43,7 @@ function metadataValue(
 ========================= */
 
 function acceptedLicense(metadata) {
-  const shortName =
+  const license =
     metadataValue(
       metadata,
       "LicenseShortName"
@@ -156,13 +67,10 @@ function acceptedLicense(metadata) {
   return {
     ok:
       allowed.some(
-        (license) =>
-          shortName.includes(
-            license
-          )
+        item =>
+          license.includes(item)
       ) ||
-      copyrighted ===
-        "false",
+      copyrighted === "false",
 
     name:
       metadataValue(
@@ -179,266 +87,436 @@ function acceptedLicense(metadata) {
 }
 
 /* =========================
-   TERMOS DE BUSCA
+   BUSCAR NO WIKIDATA
 ========================= */
 
-function getSearchTerms(teamName) {
-  const original =
-    String(teamName || "")
-      .trim();
+async function searchWikidata(teamName) {
+  const params =
+    new URLSearchParams({
+      action: "wbsearchentities",
+      search: teamName,
+      language: "pt",
+      uselang: "pt",
+      type: "item",
+      limit: "10",
+      format: "json",
+      origin: "*"
+    });
 
-  const normalized =
-    normalizeName(
-      teamName
+  const response =
+    await fetch(
+      `${WIKIDATA_API}?${params}`
     );
 
-  const terms =
-    new Set();
-
-  if (original) {
-    terms.add(original);
+  if (!response.ok) {
+    throw new Error(
+      `Wikidata busca ${response.status}`
+    );
   }
 
-  if (normalized) {
-    terms.add(normalized);
-  }
+  const data =
+    await response.json();
 
-  const aliases =
-    TEAM_ALIASES[
-      normalized
-    ] || [];
-
-  for (
-    const alias of aliases
-  ) {
-    terms.add(alias);
-  }
-
-  return [
-    ...terms
-  ];
+  return Array.isArray(data?.search)
+    ? data.search
+    : [];
 }
 
 /* =========================
-   DETECÇÃO DE CONFLITOS
+   DADOS DO ITEM WIKIDATA
 ========================= */
 
-function hasStateConflict(
-  teamName,
-  text
-) {
-  const source =
-    normalizeName(
-      teamName
-    );
-
-  const target =
-    normalizeName(
-      text
-    );
-
-  const states = [
-    "ac",
-    "al",
-    "ap",
-    "am",
-    "ba",
-    "ce",
-    "df",
-    "es",
-    "go",
-    "ma",
-    "mt",
-    "ms",
-    "mg",
-    "pa",
-    "pb",
-    "pr",
-    "pe",
-    "pi",
-    "rj",
-    "rn",
-    "rs",
-    "ro",
-    "rr",
-    "sc",
-    "sp",
-    "se",
-    "to"
-  ];
-
-  const sourceState =
-    states.find(
-      (state) =>
-        source.endsWith(
-          ` ${state}`
-        )
-    );
-
-  if (!sourceState) {
-    return false;
+async function getWikidataEntities(ids) {
+  if (!ids.length) {
+    return {};
   }
 
-  for (
-    const state of states
-  ) {
+  const params =
+    new URLSearchParams({
+      action: "wbgetentities",
+      ids: ids.join("|"),
+      props: "claims|labels|descriptions|aliases|sitelinks",
+      languages: "pt|en",
+      sitefilter: "ptwiki|enwiki",
+      format: "json",
+      origin: "*"
+    });
+
+  const response =
+    await fetch(
+      `${WIKIDATA_API}?${params}`
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `Wikidata item ${response.status}`
+    );
+  }
+
+  const data =
+    await response.json();
+
+  return data?.entities || {};
+}
+
+/* =========================
+   CLAIMS
+========================= */
+
+function claimEntityIds(entity, property) {
+  const claims =
+    entity?.claims?.[property] || [];
+
+  return claims
+    .map(
+      claim =>
+        claim?.mainsnak
+          ?.datavalue
+          ?.value
+          ?.id
+    )
+    .filter(Boolean);
+}
+
+function claimCommonsFilename(
+  entity,
+  property
+) {
+  const claims =
+    entity?.claims?.[property] || [];
+
+  for (const claim of claims) {
+    const value =
+      claim?.mainsnak
+        ?.datavalue
+        ?.value;
+
     if (
-      state !== sourceState &&
-      target.includes(
-        ` ${state}`
-      )
+      typeof value === "string" &&
+      value.trim()
     ) {
-      return true;
+      return value.trim();
     }
+  }
+
+  return null;
+}
+
+/* =========================
+   VALIDAR BRASIL
+========================= */
+
+/*
+  Q155 = Brasil
+
+  P17 = país
+
+  Alguns clubes podem não ter
+  P17 preenchido. Nesse caso
+  também olhamos descrição e
+  página da Wikipédia.
+*/
+
+function looksBrazilian(entity) {
+  const countries =
+    claimEntityIds(
+      entity,
+      "P17"
+    );
+
+  if (countries.includes("Q155")) {
+    return true;
+  }
+
+  const description =
+    normalizeName(
+      entity?.descriptions?.pt?.value ||
+      entity?.descriptions?.en?.value ||
+      ""
+    );
+
+  if (
+    description.includes("brasil") ||
+    description.includes("brazil")
+  ) {
+    return true;
+  }
+
+  const ptTitle =
+    normalizeName(
+      entity?.sitelinks
+        ?.ptwiki
+        ?.title || ""
+    );
+
+  if (
+    ptTitle.includes("futebol") ||
+    ptTitle.includes("esporte clube") ||
+    ptTitle.includes("futebol clube")
+  ) {
+    return true;
   }
 
   return false;
 }
 
 /* =========================
-   PONTUAÇÃO
+   NOMES DO ITEM
 ========================= */
 
-function matchScore(
-  teamName,
-  title,
-  description,
-  searchTerm
-) {
-  const team =
-    normalizeName(
-      teamName
-    );
+function entityNames(entity) {
+  const names = [];
 
-  const term =
-    normalizeName(
-      searchTerm
-    );
+  const pt =
+    entity?.labels?.pt?.value;
 
-  const titleNormalized =
-    normalizeName(
-      title
-    );
+  const en =
+    entity?.labels?.en?.value;
 
-  const descriptionNormalized =
-    normalizeName(
-      description
-    );
+  if (pt) names.push(pt);
+  if (en) names.push(en);
 
-  const haystack =
-    `${titleNormalized} ${descriptionNormalized}`;
-
-  if (
-    !team ||
-    !haystack
+  for (
+    const alias of
+    entity?.aliases?.pt || []
   ) {
-    return 0;
+    if (alias?.value) {
+      names.push(alias.value);
+    }
   }
 
-  if (
-    hasStateConflict(
-      teamName,
-      haystack
-    )
+  for (
+    const alias of
+    entity?.aliases?.en || []
   ) {
+    if (alias?.value) {
+      names.push(alias.value);
+    }
+  }
+
+  return [
+    ...new Set(names)
+  ];
+}
+
+/* =========================
+   PONTUAÇÃO DO CLUBE
+========================= */
+
+function entityScore(
+  requestedName,
+  searchResult,
+  entity
+) {
+  const requested =
+    normalizeName(requestedName);
+
+  if (!requested) {
     return 0;
   }
 
   let score = 0;
 
+  const searchLabel =
+    normalizeName(
+      searchResult?.label || ""
+    );
+
+  const names =
+    entityNames(entity)
+      .map(normalizeName)
+      .filter(Boolean);
+
   if (
-    titleNormalized ===
-    team
+    names.includes(requested)
   ) {
     score += 100;
   }
 
   if (
-    titleNormalized.includes(
-      team
-    )
+    searchLabel === requested
   ) {
-    score += 70;
+    score += 80;
   }
 
-  if (
-    haystack.includes(
-      team
-    )
-  ) {
-    score += 50;
+  for (const name of names) {
+    if (
+      name.includes(requested) ||
+      requested.includes(name)
+    ) {
+      score += 30;
+      break;
+    }
   }
 
-  if (
-    term &&
-    titleNormalized.includes(
-      term
-    )
-  ) {
-    score += 35;
-  }
+  const description =
+    normalizeName(
+      searchResult?.description ||
+      entity?.descriptions?.pt?.value ||
+      entity?.descriptions?.en?.value ||
+      ""
+    );
 
   if (
-    term &&
-    haystack.includes(
-      term
-    )
+    description.includes("futebol") ||
+    description.includes("football")
   ) {
-    score += 20;
+    score += 25;
   }
 
+  if (looksBrazilian(entity)) {
+    score += 40;
+  } else {
+    /*
+      Para os Jogos do Escuro
+      brasileiros atuais, não
+      aceitamos item sem evidência
+      de ligação com o Brasil.
+    */
+    return 0;
+  }
+
+  /*
+    P154 = logotipo
+  */
+
   if (
-    titleNormalized.includes(
-      "logo"
-    ) ||
-    titleNormalized.includes(
-      "escudo"
+    claimCommonsFilename(
+      entity,
+      "P154"
     )
   ) {
-    score += 10;
+    score += 30;
   }
 
   return score;
 }
 
 /* =========================
-   WIKIMEDIA
+   ESCOLHER ITEM WIKIDATA
 ========================= */
 
-async function searchCommons(
-  searchTerm
+async function findWikidataTeam(
+  teamName
 ) {
+  const searchResults =
+    await searchWikidata(
+      teamName
+    );
+
+  if (!searchResults.length) {
+    return null;
+  }
+
+  const ids =
+    searchResults
+      .map(item => item.id)
+      .filter(Boolean);
+
+  const entities =
+    await getWikidataEntities(
+      ids
+    );
+
+  const candidates = [];
+
+  for (
+    const searchResult of
+    searchResults
+  ) {
+    const entity =
+      entities[
+        searchResult.id
+      ];
+
+    if (!entity) continue;
+
+    const score =
+      entityScore(
+        teamName,
+        searchResult,
+        entity
+      );
+
+    if (score < 90) {
+      continue;
+    }
+
+    const logoFile =
+      claimCommonsFilename(
+        entity,
+        "P154"
+      );
+
+    if (!logoFile) {
+      continue;
+    }
+
+    candidates.push({
+      id:
+        searchResult.id,
+
+      score,
+
+      entity,
+
+      logoFile
+    });
+  }
+
+  candidates.sort(
+    (a, b) =>
+      b.score - a.score
+  );
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  const best =
+    candidates[0];
+
+  /*
+    Se dois clubes diferentes
+    empatarem na pontuação,
+    não arriscamos.
+  */
+
+  const tied =
+    candidates.filter(
+      candidate =>
+        candidate.score ===
+        best.score
+    );
+
+  if (tied.length > 1) {
+    return null;
+  }
+
+  return best;
+}
+
+/* =========================
+   PEGAR ARQUIVO NO COMMONS
+========================= */
+
+async function getCommonsLogo(
+  filename
+) {
+  const title =
+    filename.startsWith("File:")
+      ? filename
+      : `File:${filename}`;
+
   const params =
     new URLSearchParams({
-      action:
-        "query",
-
-      generator:
-        "search",
-
-      gsrsearch:
-        `${searchTerm} futebol clube logo`,
-
-      gsrnamespace:
-        "6",
-
-      gsrlimit:
-        "20",
-
-      prop:
-        "imageinfo",
-
-      iiprop:
-        "url|extmetadata",
-
-      iiurlwidth:
-        "256",
-
-      format:
-        "json",
-
-      origin:
-        "*"
+      action: "query",
+      titles: title,
+      prop: "imageinfo",
+      iiprop: "url|extmetadata",
+      iiurlwidth: "256",
+      format: "json",
+      origin: "*"
     });
 
   const response =
@@ -448,181 +526,79 @@ async function searchCommons(
 
   if (!response.ok) {
     throw new Error(
-      `Wikimedia Commons ${response.status}`
+      `Commons imagem ${response.status}`
     );
   }
 
   const data =
     await response.json();
 
-  return Object.values(
-    data?.query?.pages ||
-      {}
-  );
-}
-
-/* =========================
-   PROCURAR MELHOR CANDIDATO
-========================= */
-
-async function findBestCandidate(
-  teamName
-) {
-  const terms =
-    getSearchTerms(
-      teamName
+  const pages =
+    Object.values(
+      data?.query?.pages || {}
     );
 
-  const candidates =
-    [];
-
-  for (
-    const term of terms
-  ) {
-    let pages = [];
-
-    try {
-      pages =
-        await searchCommons(
-          term
-        );
-    } catch (error) {
-      console.error(
-        `[teamLogos] busca ${term}:`,
-        error.message
-      );
-
-      continue;
-    }
-
-    for (
-      const page of pages
-    ) {
-      const info =
-        page?.imageinfo?.[0];
-
-      if (!info) {
-        continue;
-      }
-
-      const metadata =
-        info.extmetadata ||
-        {};
-
-      const description =
-        metadataValue(
-          metadata,
-          "ImageDescription"
-        );
-
-      const score =
-        matchScore(
-          teamName,
-          page.title,
-          description,
-          term
-        );
-
-      if (
-        score < 50
-      ) {
-        continue;
-      }
-
-      const license =
-        acceptedLicense(
-          metadata
-        );
-
-      if (!license.ok) {
-        continue;
-      }
-
-      const logo =
-        info.thumburl ||
-        info.url ||
-        null;
-
-      if (!logo) {
-        continue;
-      }
-
-      candidates.push({
-        score,
-
-        logo,
-
-        title:
-          page.title,
-
-        source:
-          "Wikimedia Commons",
-
-        source_page:
-          info.descriptionurl ||
-          null,
-
-        license:
-          license.name,
-
-        license_url:
-          license.url,
-
-        verified:
-          true
-      });
-    }
-  }
-
-  candidates.sort(
-    (a, b) =>
-      b.score -
-      a.score
-  );
+  const page =
+    pages[0];
 
   if (
-    candidates.length ===
-    0
+    !page ||
+    page.missing !== undefined
   ) {
     return null;
   }
 
-  const best =
-    candidates[0];
+  const info =
+    page?.imageinfo?.[0];
 
-  /*
-    Se houver empate entre
-    resultados diferentes,
-    não arriscamos escudo errado.
-  */
-
-  const sameScore =
-    candidates.filter(
-      (item) =>
-        item.score ===
-        best.score
-    );
-
-  const uniqueLogos =
-    new Set(
-      sameScore.map(
-        (item) =>
-          item.logo
-      )
-    );
-
-  if (
-    uniqueLogos.size >
-    1
-  ) {
+  if (!info) {
     return null;
   }
 
-  return best;
+  const metadata =
+    info.extmetadata || {};
+
+  const license =
+    acceptedLicense(
+      metadata
+    );
+
+  if (!license.ok) {
+    return null;
+  }
+
+  const logo =
+    info.thumburl ||
+    info.url ||
+    null;
+
+  if (!logo) {
+    return null;
+  }
+
+  return {
+    logo,
+
+    source:
+      "Wikidata / Wikimedia Commons",
+
+    source_page:
+      info.descriptionurl ||
+      null,
+
+    license:
+      license.name,
+
+    license_url:
+      license.url,
+
+    verified:
+      true
+  };
 }
 
 /* =========================
-   API PRINCIPAL
+   FUNÇÃO PRINCIPAL
 ========================= */
 
 export async function findExternalTeamLogo(
@@ -650,10 +626,58 @@ export async function findExternalTeamLogo(
   }
 
   try {
-    const result =
-      await findBestCandidate(
+    const team =
+      await findWikidataTeam(
         teamName
       );
+
+    if (!team) {
+      cache.set(
+        key,
+        {
+          time:
+            Date.now(),
+
+          value:
+            null
+        }
+      );
+
+      return null;
+    }
+
+    const logo =
+      await getCommonsLogo(
+        team.logoFile
+      );
+
+    if (!logo) {
+      cache.set(
+        key,
+        {
+          time:
+            Date.now(),
+
+          value:
+            null
+        }
+      );
+
+      return null;
+    }
+
+    const result = {
+      ...logo,
+
+      wikidata_id:
+        team.id,
+
+      wikidata_url:
+        `https://www.wikidata.org/wiki/${team.id}`,
+
+      match_score:
+        team.score
+    };
 
     cache.set(
       key,
@@ -670,7 +694,7 @@ export async function findExternalTeamLogo(
 
   } catch (error) {
     console.error(
-      `[teamLogos] ${teamName}:`,
+      `[teamLogos v3] ${teamName}:`,
       error.message
     );
 
