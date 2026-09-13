@@ -2,6 +2,11 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 
+import {
+  getDarkGames,
+  getDarkGame
+} from "./darkGames.js";
+
 dotenv.config();
 
 const app = express();
@@ -187,7 +192,7 @@ app.get("/", (req, res) => {
   res.json({
     app: "RádioPlacar API",
     status: "online",
-    version: "1.3.0"
+    version: "1.4.0"
   });
 });
 
@@ -335,6 +340,60 @@ app.get("/api/fixture/:id", async (req, res) => {
   } catch (error) {
     console.error(
       "Erro /api/fixture:",
+      error.message
+    );
+
+    res.status(500).json({
+      error: true,
+      message: error.message
+    });
+  }
+});
+
+/* =========================
+   JOGOS DO ESCURO
+   SEPARADO DA BSD
+========================= */
+
+app.get("/api/dark-games", (req, res) => {
+  try {
+    const date = req.query.date || null;
+
+    const games = getDarkGames(date);
+
+    res.json({
+      source: "dark-games",
+      count: games.length,
+      results: games
+    });
+  } catch (error) {
+    console.error(
+      "Erro /api/dark-games:",
+      error.message
+    );
+
+    res.status(500).json({
+      error: true,
+      message: error.message
+    });
+  }
+});
+
+app.get("/api/dark-games/:id", (req, res) => {
+  try {
+    const game = getDarkGame(req.params.id);
+
+    if (!game) {
+      return res.status(404).json({
+        error: true,
+        message: "Jogo não encontrado"
+      });
+    }
+
+    res.json(game);
+  } catch (error) {
+    console.error(
+      "Erro /api/dark-games/:id:",
       error.message
     );
 
