@@ -1,5 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState
+} from "react";
+
 import ReactDOM from "react-dom/client";
+
 import {
   Radio,
   Play,
@@ -9,15 +15,18 @@ import {
   Trophy,
   MapPin,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ArrowLeft
 } from "lucide-react";
+
 import "./styles.css";
 
 const API =
   import.meta.env.VITE_API_BASE ||
   "https://radioplacar-api.onrender.com/api";
 
-const IMAGE_BASE = "https://sports.bzzoiro.com/img";
+const IMAGE_BASE =
+  "https://sports.bzzoiro.com/img";
 
 /* =========================
    NORMALIZAR RESPOSTAS
@@ -53,7 +62,8 @@ function getResults(data) {
 ========================= */
 
 function isLive(status) {
-  const value = String(status || "").toLowerCase();
+  const value =
+    String(status || "").toLowerCase();
 
   return [
     "live",
@@ -66,7 +76,8 @@ function isLive(status) {
 }
 
 function isFinished(status) {
-  const value = String(status || "").toLowerCase();
+  const value =
+    String(status || "").toLowerCase();
 
   return [
     "finished",
@@ -81,18 +92,58 @@ function isFinished(status) {
 ========================= */
 
 function formatTime(dateString) {
-  if (!dateString) return "--:--";
-
-  const date = new Date(dateString);
-
-  if (Number.isNaN(date.getTime())) {
+  if (!dateString) {
     return "--:--";
   }
 
-  return date.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  const date =
+    new Date(dateString);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "--:--";
+  }
+
+  return date.toLocaleTimeString(
+    "pt-BR",
+    {
+      hour: "2-digit",
+      minute: "2-digit"
+    }
+  );
+}
+
+/* =========================
+   DATA
+========================= */
+
+function formatDate(dateString) {
+  if (!dateString) {
+    return "";
+  }
+
+  const date =
+    new Date(dateString);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "";
+  }
+
+  return date.toLocaleDateString(
+    "pt-BR",
+    {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    }
+  );
 }
 
 /* =========================
@@ -103,15 +154,21 @@ function TeamLogo({
   teamId,
   teamName
 }) {
-  const [failed, setFailed] =
-    useState(false);
+  const [
+    failed,
+    setFailed
+  ] = useState(false);
 
-  if (!teamId || failed) {
+  if (
+    !teamId ||
+    failed
+  ) {
     return (
       <span>
         {teamName
           ?.slice(0, 1)
-          ?.toUpperCase() || "?"}
+          ?.toUpperCase() ||
+          "?"}
       </span>
     );
   }
@@ -119,9 +176,13 @@ function TeamLogo({
   return (
     <img
       src={`${IMAGE_BASE}/team/${teamId}/?bg=transparent`}
-      alt={teamName || "Time"}
+      alt={
+        teamName || "Time"
+      }
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() =>
+        setFailed(true)
+      }
     />
   );
 }
@@ -134,19 +195,31 @@ function LeagueLogo({
   leagueId,
   leagueName
 }) {
-  const [failed, setFailed] =
-    useState(false);
+  const [
+    failed,
+    setFailed
+  ] = useState(false);
 
-  if (!leagueId || failed) {
-    return <Trophy size={16} />;
+  if (
+    !leagueId ||
+    failed
+  ) {
+    return (
+      <Trophy size={16} />
+    );
   }
 
   return (
     <img
       src={`${IMAGE_BASE}/league/${leagueId}/?bg=transparent`}
-      alt={leagueName || "Competição"}
+      alt={
+        leagueName ||
+        "Competição"
+      }
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() =>
+        setFailed(true)
+      }
       style={{
         width: "22px",
         height: "22px",
@@ -161,11 +234,16 @@ function LeagueLogo({
 ========================= */
 
 function MatchCard({
-  match
+  match,
+  onOpen
 }) {
-  const live = isLive(match.status);
+  const live =
+    isLive(match.status);
+
   const finished =
-    isFinished(match.status);
+    isFinished(
+      match.status
+    );
 
   const homeScore =
     match.home_score;
@@ -180,7 +258,18 @@ function MatchCard({
     awayScore != null;
 
   return (
-    <div className="match-card">
+    <button
+      type="button"
+      onClick={() =>
+        onOpen(match)
+      }
+      className="match-card"
+      style={{
+        width: "100%",
+        color: "#ffffff",
+        textAlign: "initial"
+      }}
+    >
       <div className="teams">
         <div className="team">
           <div className="team-logo">
@@ -203,7 +292,9 @@ function MatchCard({
         <div className="score">
           <div className="score-number">
             {hasScore
-              ? `${homeScore ?? 0} - ${
+              ? `${
+                  homeScore ?? 0
+                } - ${
                   awayScore ?? 0
                 }`
               : "x"}
@@ -253,7 +344,7 @@ function MatchCard({
           </span>
         </div>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -264,7 +355,8 @@ function MatchCard({
 function CompetitionGroup({
   group,
   open,
-  onToggle
+  onToggle,
+  onOpenMatch
 }) {
   return (
     <section
@@ -278,13 +370,15 @@ function CompetitionGroup({
         style={{
           width: "100%",
           padding: "13px 14px",
-          marginBottom: open
-            ? "10px"
-            : "0",
+          marginBottom:
+            open
+              ? "10px"
+              : "0",
           display: "flex",
           alignItems: "center",
           gap: "11px",
-          borderRadius: "16px",
+          borderRadius:
+            "16px",
           background:
             "rgba(14,90,150,0.22)",
           border:
@@ -300,14 +394,19 @@ function CompetitionGroup({
             flex: "0 0 42px",
             display: "grid",
             placeItems: "center",
-            borderRadius: "12px",
+            borderRadius:
+              "12px",
             background:
               "rgba(255,255,255,0.07)"
           }}
         >
           <LeagueLogo
-            leagueId={group.leagueId}
-            leagueName={group.name}
+            leagueId={
+              group.leagueId
+            }
+            leagueName={
+              group.name
+            }
           />
         </div>
 
@@ -320,14 +419,18 @@ function CompetitionGroup({
           <div
             style={{
               display: "flex",
-              alignItems: "center",
+              alignItems:
+                "center",
               gap: "5px",
-              color: "#5cc8f2",
-              fontSize: "9px",
+              color:
+                "#5cc8f2",
+              fontSize:
+                "9px",
               fontWeight: 800,
               textTransform:
                 "uppercase",
-              letterSpacing: "0.7px"
+              letterSpacing:
+                "0.7px"
             }}
           >
             <MapPin size={10} />
@@ -337,9 +440,11 @@ function CompetitionGroup({
 
           <div
             style={{
-              marginTop: "3px",
+              marginTop:
+                "3px",
               color: "#fff",
-              fontSize: "14px",
+              fontSize:
+                "14px",
               fontWeight: 900,
               lineHeight: 1.2
             }}
@@ -351,12 +456,16 @@ function CompetitionGroup({
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems:
+              "center",
             gap: "8px"
           }}
         >
           <span className="section-count">
-            {group.matches.length}
+            {
+              group.matches
+                .length
+            }
           </span>
 
           {open ? (
@@ -377,8 +486,13 @@ function CompetitionGroup({
         group.matches.map(
           (match) => (
             <MatchCard
-              key={match.id}
+              key={
+                match.id
+              }
               match={match}
+              onOpen={
+                onOpenMatch
+              }
             />
           )
         )}
@@ -387,27 +501,578 @@ function CompetitionGroup({
 }
 
 /* =========================
+   TELA DE DETALHES
+========================= */
+
+function MatchDetails({
+  match,
+  league,
+  onBack
+}) {
+  const [
+    detail,
+    setDetail
+  ] = useState(null);
+
+  const [
+    loading,
+    setLoading
+  ] = useState(true);
+
+  const [
+    error,
+    setError
+  ] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDetail() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response =
+          await fetch(
+            `${API}/fixture/${match.id}`
+          );
+
+        if (
+          !response.ok
+        ) {
+          throw new Error(
+            "Erro ao carregar detalhes"
+          );
+        }
+
+        const data =
+          await response.json();
+
+        if (active) {
+          setDetail(data);
+        }
+      } catch (err) {
+        console.error(err);
+
+        if (active) {
+          setError(
+            "Não foi possível carregar os detalhes desta partida."
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadDetail();
+
+    return () => {
+      active = false;
+    };
+  }, [match.id]);
+
+  const data =
+    detail || match;
+
+  const live =
+    isLive(data.status);
+
+  const finished =
+    isFinished(
+      data.status
+    );
+
+  const hasScore =
+    live ||
+    finished ||
+    data.home_score !=
+      null ||
+    data.away_score !=
+      null;
+
+  const h2h =
+    data.head_to_head;
+
+  const recentMatches =
+    Array.isArray(
+      h2h?.recent_matches
+    )
+      ? h2h.recent_matches
+      : [];
+
+  return (
+    <div className="app">
+      <header className="header">
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            width: "42px",
+            height: "42px",
+            display: "grid",
+            placeItems:
+              "center",
+            borderRadius:
+              "50%",
+            background:
+              "rgba(255,255,255,0.08)",
+            color: "#ffffff"
+          }}
+        >
+          <ArrowLeft
+            size={21}
+          />
+        </button>
+
+        <div
+          style={{
+            flex: 1,
+            marginLeft:
+              "12px"
+          }}
+        >
+          <div className="brand-name">
+            RADIO
+            <span>
+              PLACAR
+            </span>
+          </div>
+
+          <div className="brand-subtitle">
+            DETALHES DO JOGO
+          </div>
+        </div>
+      </header>
+
+      <main className="content">
+        <div
+          style={{
+            padding:
+              "16px",
+            marginBottom:
+              "15px",
+            borderRadius:
+              "18px",
+            background:
+              "rgba(14,90,150,0.22)",
+            border:
+              "1px solid rgba(92,200,242,0.12)"
+          }}
+        >
+          <div
+            style={{
+              display:
+                "flex",
+              alignItems:
+                "center",
+              gap: "10px"
+            }}
+          >
+            <LeagueLogo
+              leagueId={
+                data.league_id
+              }
+              leagueName={
+                league?.name
+              }
+            />
+
+            <div>
+              <div
+                style={{
+                  fontSize:
+                    "13px",
+                  fontWeight:
+                    900
+                }}
+              >
+                {league?.name ||
+                  `Liga ${data.league_id}`}
+              </div>
+
+              <div
+                style={{
+                  marginTop:
+                    "3px",
+                  color:
+                    "#5cc8f2",
+                  fontSize:
+                    "10px"
+                }}
+              >
+                {league?.country ||
+                  "Competição"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="match-card">
+          <div className="teams">
+            <div className="team">
+              <div className="team-logo">
+                <TeamLogo
+                  teamId={
+                    data.home_team_id
+                  }
+                  teamName={
+                    data.home_team
+                  }
+                />
+              </div>
+
+              <div className="team-name">
+                {data.home_team ||
+                  "Mandante"}
+              </div>
+            </div>
+
+            <div className="score">
+              <div className="score-number">
+                {hasScore
+                  ? `${
+                      data.home_score ??
+                      0
+                    } - ${
+                      data.away_score ??
+                      0
+                    }`
+                  : "x"}
+              </div>
+
+              <div className="score-time">
+                {live
+                  ? data.current_minute
+                    ? `${data.current_minute}'`
+                    : "AO VIVO"
+                  : finished
+                  ? "ENCERRADO"
+                  : formatTime(
+                      data.event_date
+                    )}
+              </div>
+            </div>
+
+            <div className="team">
+              <div className="team-logo">
+                <TeamLogo
+                  teamId={
+                    data.away_team_id
+                  }
+                  teamName={
+                    data.away_team
+                  }
+                />
+              </div>
+
+              <div className="team-name">
+                {data.away_team ||
+                  "Visitante"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {loading && (
+          <div className="loading">
+            Carregando detalhes...
+          </div>
+        )}
+
+        {error && (
+          <div className="error">
+            {error}
+          </div>
+        )}
+
+        {!loading &&
+          !error && (
+            <>
+              <div className="section-title">
+                <h2>
+                  INFORMAÇÕES
+                </h2>
+              </div>
+
+              <div className="radio-card">
+                <div className="radio-info">
+                  <div className="radio-name">
+                    Data e horário
+                  </div>
+
+                  <div className="radio-status">
+                    {formatDate(
+                      data.event_date
+                    )}
+                    {" • "}
+                    {formatTime(
+                      data.event_date
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {data.round_number !=
+                null && (
+                <div className="radio-card">
+                  <div className="radio-info">
+                    <div className="radio-name">
+                      Rodada
+                    </div>
+
+                    <div className="radio-status">
+                      {data.round_label ||
+                        data.round_name ||
+                        `Rodada ${data.round_number}`}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {data.stage_name && (
+                <div className="radio-card">
+                  <div className="radio-info">
+                    <div className="radio-name">
+                      Fase
+                    </div>
+
+                    <div className="radio-status">
+                      {
+                        data.stage_name
+                      }
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {h2h && (
+                <>
+                  <div className="section-title">
+                    <h2>
+                      CONFRONTO DIRETO
+                    </h2>
+                  </div>
+
+                  <div className="radio-card">
+                    <div
+                      className="radio-info"
+                      style={{
+                        textAlign:
+                          "center"
+                      }}
+                    >
+                      <div className="radio-name">
+                        Total de jogos
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop:
+                            "8px",
+                          fontSize:
+                            "22px",
+                          fontWeight:
+                            900
+                        }}
+                      >
+                        {h2h.total_matches ??
+                          0}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display:
+                        "grid",
+                      gridTemplateColumns:
+                        "1fr 1fr 1fr",
+                      gap: "8px"
+                    }}
+                  >
+                    <div className="radio-card">
+                      <div
+                        className="radio-info"
+                        style={{
+                          textAlign:
+                            "center"
+                        }}
+                      >
+                        <div className="radio-name">
+                          Casa
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop:
+                              "6px",
+                            fontSize:
+                              "20px",
+                            fontWeight:
+                              900
+                          }}
+                        >
+                          {h2h.home_wins ??
+                            0}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="radio-card">
+                      <div
+                        className="radio-info"
+                        style={{
+                          textAlign:
+                            "center"
+                        }}
+                      >
+                        <div className="radio-name">
+                          Empates
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop:
+                              "6px",
+                            fontSize:
+                              "20px",
+                            fontWeight:
+                              900
+                          }}
+                        >
+                          {h2h.draws ??
+                            0}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="radio-card">
+                      <div
+                        className="radio-info"
+                        style={{
+                          textAlign:
+                            "center"
+                        }}
+                      >
+                        <div className="radio-name">
+                          Fora
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop:
+                              "6px",
+                            fontSize:
+                              "20px",
+                            fontWeight:
+                              900
+                          }}
+                        >
+                          {h2h.away_wins ??
+                            0}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {recentMatches.length >
+                0 && (
+                <>
+                  <div className="section-title">
+                    <h2>
+                      ÚLTIMOS CONFRONTOS
+                    </h2>
+                  </div>
+
+                  {recentMatches.map(
+                    (
+                      previous,
+                      index
+                    ) => (
+                      <div
+                        key={
+                          previous.id ||
+                          index
+                        }
+                        className="radio-card"
+                      >
+                        <div className="radio-info">
+                          <div className="radio-name">
+                            {previous.home_team ||
+                              "Mandante"}{" "}
+                            {previous.home_score !=
+                              null
+                              ? previous.home_score
+                              : "-"}{" "}
+                            x{" "}
+                            {previous.away_score !=
+                              null
+                              ? previous.away_score
+                              : "-"}{" "}
+                            {previous.away_team ||
+                              "Visitante"}
+                          </div>
+
+                          <div className="radio-status">
+                            {formatDate(
+                              previous.event_date
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </>
+              )}
+            </>
+          )}
+      </main>
+    </div>
+  );
+}
+
+/* =========================
    APP
 ========================= */
 
 function App() {
-  const [matches, setMatches] =
-    useState([]);
+  const [
+    matches,
+    setMatches
+  ] = useState([]);
 
-  const [liveMatches, setLiveMatches] =
-    useState([]);
+  const [
+    liveMatches,
+    setLiveMatches
+  ] = useState([]);
 
-  const [leagues, setLeagues] =
-    useState([]);
+  const [
+    leagues,
+    setLeagues
+  ] = useState([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading
+  ] = useState(true);
 
-  const [error, setError] =
-    useState("");
+  const [
+    error,
+    setError
+  ] = useState("");
 
-  const [playing] =
-    useState(false);
+  const [
+    playing
+  ] = useState(false);
+
+  const [
+    selectedMatch,
+    setSelectedMatch
+  ] = useState(null);
 
   const [
     expandedCompetitions,
@@ -469,7 +1134,9 @@ function App() {
       );
 
       setLeagues(
-        getResults(leaguesData)
+        getResults(
+          leaguesData
+        )
       );
     } catch (err) {
       console.error(err);
@@ -491,7 +1158,9 @@ function App() {
       }, 30000);
 
     return () => {
-      clearInterval(timer);
+      clearInterval(
+        timer
+      );
     };
   }, []);
 
@@ -535,7 +1204,10 @@ function App() {
           return match;
         }
       );
-    }, [matches, liveIds]);
+    }, [
+      matches,
+      liveIds
+    ]);
 
   /* =========================
      MAPA DAS LIGAS
@@ -543,12 +1215,15 @@ function App() {
 
   const leaguesMap =
     useMemo(() => {
-      const map = new Map();
+      const map =
+        new Map();
 
       leagues.forEach(
         (league) => {
           map.set(
-            String(league.id),
+            String(
+              league.id
+            ),
             league
           );
         }
@@ -558,12 +1233,13 @@ function App() {
     }, [leagues]);
 
   /* =========================
-     AGRUPAR POR COMPETIÇÃO
+     AGRUPAR COMPETIÇÕES
   ========================= */
 
   const groupedMatches =
     useMemo(() => {
-      const map = new Map();
+      const map =
+        new Map();
 
       normalizedMatches.forEach(
         (match) => {
@@ -586,13 +1262,18 @@ function App() {
             league?.country ||
             "Internacional";
 
-          if (!map.has(leagueId)) {
+          if (
+            !map.has(
+              leagueId
+            )
+          ) {
             map.set(
               leagueId,
               {
                 leagueId:
                   match.league_id,
-                name: groupName,
+                name:
+                  groupName,
                 country,
                 matches: []
               }
@@ -600,70 +1281,89 @@ function App() {
           }
 
           map
-            .get(leagueId)
-            .matches.push(match);
+            .get(
+              leagueId
+            )
+            .matches.push(
+              match
+            );
         }
       );
 
       return Array.from(
         map.values()
-      ).sort((a, b) => {
-        const aHasLive =
-          a.matches.some((match) =>
-            isLive(match.status)
-          );
+      ).sort(
+        (a, b) => {
+          const aHasLive =
+            a.matches.some(
+              (match) =>
+                isLive(
+                  match.status
+                )
+            );
 
-        const bHasLive =
-          b.matches.some((match) =>
-            isLive(match.status)
-          );
+          const bHasLive =
+            b.matches.some(
+              (match) =>
+                isLive(
+                  match.status
+                )
+            );
 
-        if (
-          aHasLive &&
-          !bHasLive
-        ) {
-          return -1;
-        }
+          if (
+            aHasLive &&
+            !bHasLive
+          ) {
+            return -1;
+          }
 
-        if (
-          !aHasLive &&
-          bHasLive
-        ) {
-          return 1;
-        }
+          if (
+            !aHasLive &&
+            bHasLive
+          ) {
+            return 1;
+          }
 
-        const countryCompare =
-          String(a.country)
-            .localeCompare(
-              String(b.country),
+          const countryCompare =
+            String(
+              a.country
+            ).localeCompare(
+              String(
+                b.country
+              ),
               "pt-BR"
             );
 
-        if (
-          countryCompare !== 0
-        ) {
-          return countryCompare;
-        }
+          if (
+            countryCompare !==
+            0
+          ) {
+            return countryCompare;
+          }
 
-        return String(a.name)
-          .localeCompare(
-            String(b.name),
+          return String(
+            a.name
+          ).localeCompare(
+            String(
+              b.name
+            ),
             "pt-BR"
           );
-      });
+        }
+      );
     }, [
       normalizedMatches,
       leaguesMap
     ]);
 
   /* =========================
-     ABRIR AUTOMATICAMENTE
-     CAMPEONATOS AO VIVO
+     ABRIR AO VIVO
   ========================= */
 
   useEffect(() => {
     if (
-      groupedMatches.length === 0
+      groupedMatches.length ===
+      0
     ) {
       return;
     }
@@ -685,15 +1385,13 @@ function App() {
               next[key] ===
               undefined
             ) {
-              const hasLive =
+              next[key] =
                 group.matches.some(
                   (match) =>
                     isLive(
                       match.status
                     )
                 );
-
-              next[key] = hasLive;
             }
           }
         );
@@ -711,12 +1409,15 @@ function App() {
     leagueId
   ) {
     const key =
-      String(leagueId);
+      String(
+        leagueId
+      );
 
     setExpandedCompetitions(
       (old) => ({
         ...old,
-        [key]: !old[key]
+        [key]:
+          !old[key]
       })
     );
   }
@@ -729,12 +1430,45 @@ function App() {
     useMemo(() => {
       return normalizedMatches.filter(
         (match) =>
-          isLive(match.status)
+          isLive(
+            match.status
+          )
       ).length;
-    }, [normalizedMatches]);
+    }, [
+      normalizedMatches
+    ]);
 
   /* =========================
-     RENDER
+     TELA DETALHES
+  ========================= */
+
+  if (selectedMatch) {
+    const league =
+      leaguesMap.get(
+        String(
+          selectedMatch.league_id
+        )
+      );
+
+    return (
+      <MatchDetails
+        match={
+          selectedMatch
+        }
+        league={
+          league
+        }
+        onBack={() =>
+          setSelectedMatch(
+            null
+          )
+        }
+      />
+    );
+  }
+
+  /* =========================
+     TELA PRINCIPAL
   ========================= */
 
   return (
@@ -827,7 +1561,9 @@ function App() {
               return (
                 <CompetitionGroup
                   key={key}
-                  group={group}
+                  group={
+                    group
+                  }
                   open={
                     expandedCompetitions[
                       key
@@ -837,6 +1573,9 @@ function App() {
                     toggleCompetition(
                       group.leagueId
                     )
+                  }
+                  onOpenMatch={
+                    setSelectedMatch
                   }
                 />
               );
@@ -866,8 +1605,8 @@ function App() {
             <div className="radio-status">
               As rádios serão
               adicionadas somente
-              com transmissões reais
-              verificadas.
+              com transmissões
+              reais verificadas.
             </div>
           </div>
 
@@ -875,7 +1614,6 @@ function App() {
             className="play-button"
             type="button"
             disabled
-            aria-label="Player ainda não disponível"
           >
             <Play size={17} />
           </button>
@@ -883,7 +1621,9 @@ function App() {
 
         <button
           type="button"
-          onClick={loadData}
+          onClick={
+            loadData
+          }
           className="radio-card"
           style={{
             width: "100%",
@@ -908,7 +1648,9 @@ function App() {
             </div>
           </div>
 
-          <Clock3 size={19} />
+          <Clock3
+            size={19}
+          />
         </button>
       </main>
 
@@ -932,7 +1674,6 @@ function App() {
           type="button"
           className="player-button"
           disabled
-          aria-label="Player ainda não disponível"
         >
           {playing ? (
             <Pause size={18} />
