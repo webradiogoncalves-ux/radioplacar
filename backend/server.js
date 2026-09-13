@@ -13,12 +13,46 @@ const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.API_FOOTBALL_KEY;
 const API_BASE = "https://sports.bzzoiro.com";
 
-async function apiRequest(path) {
+/* =========================
+   CACHE
+========================= */
+
+const cache = new Map();
+
+function getCache(key, maxAge) {
+  const item = cache.get(key);
+
+  if (!item) return null;
+
+  if (Date.now() - item.time > maxAge) {
+    cache.delete(key);
+    return null;
+  }
+
+  return item.data;
+}
+
+function setCache(key, data) {
+  cache.set(key, {
+    time: Date.now(),
+    data
+  });
+}
+
+/* =========================
+   API BSD
+========================= */
+
+async function apiRequest(pathOrUrl) {
   if (!API_KEY) {
     throw new Error("API_FOOTBALL_KEY não configurada");
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const url = pathOrUrl.startsWith("http")
+    ? pathOrUrl
+    : `${API_BASE}${pathOrUrl}`;
+
+  const response = await fetch(url, {
     headers: {
       Authorization: `Token ${API_KEY}`,
       Accept: "application/json"
@@ -27,26 +61,90 @@ async function apiRequest(path) {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Erro na API ${response.status}: ${text}`);
+
+    throw new Error(
+      `Erro na API ${response.status}: ${text}`
+    );
   }
 
   return response.json();
 }
 
+/* =========================
+   DATA
+========================= */
+
 function hojeUTC() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Página inicial da API
+/* =========================
+   BUSCAR TODAS AS PÁGINAS
+========================= */
+
+async function getAllMatches(date) {
+  const cacheKey = `matches-${date}`;
+
+  const cached = getCache(cacheKey, 60000);
+
+  if (cached) {
+    return cached;
+  }
+
+  let url =
+    `/api/v2/events/?date_from=${date}` +
+    `&date_to=${date}` +
+    `&limit=50&offset=0`;
+
+  const allResults = [];
+
+  let total = 0;
+  let pages = 0;
+
+  while (url && pages < 10) {
+    const data = await apiRequest(url);
+
+    pages += 1;
+
+    if (Array.isArray(data?.results)) {
+      allResults.push(...data.results);
+    }
+
+    if (typeof data?.count === "number") {
+      total = data.count;
+    }
+
+    url = data?.next || null;
+  }
+
+  const response = {
+    count: total || allResults.length,
+    returned: allResults.length,
+    pages,
+    results: allResults
+  };
+
+  setCache(cacheKey, response);
+
+  return response;
+}
+
+/* =========================
+   PÁGINA INICIAL
+========================= */
+
 app.get("/", (req, res) => {
   res.json({
     app: "RádioPlacar API",
     status: "online",
-    version: "1.0.1"
+    version: "1.1.0"
   });
 });
 
-// Teste da API
+/* =========================
+   HEALTH
+========================= */
+
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
@@ -55,13 +153,30 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Jogos AO VIVO
+/* =========================
+   JOGOS AO VIVO
+========================= */
+
 app.get("/api/live", async (req, res) => {
   try {
-    const data = await apiRequest("/api/v2/events/live/");
+    const cached = getCache("live", 20000);
+
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const data = await apiRequest(
+      "/api/v2/events/live/"
+    );
+
+    setCache("live", data);
+
     res.json(data);
   } catch (error) {
-    console.error("Erro /api/live:", error.message);
+    console.error(
+      "Erro /api/live:",
+      error.message
+    );
 
     res.status(500).json({
       error: true,
@@ -70,18 +185,22 @@ app.get("/api/live", async (req, res) => {
   }
 });
 
-// Jogos de hoje
+/* =========================
+   JOGOS DE HOJE
+========================= */
+
 app.get("/api/today", async (req, res) => {
   try {
     const date = hojeUTC();
 
-    const data = await apiRequest(
-      `/api/v2/events/?date_from=${date}&date_to=${date}`
-    );
+    const data = await getAllMatches(date);
 
     res.json(data);
   } catch (error) {
-    console.error("Erro /api/today:", error.message);
+    console.error(
+      "Erro /api/today:",
+      error.message
+    );
 
     res.status(500).json({
       error: true,
@@ -90,20 +209,23 @@ app.get("/api/today", async (req, res) => {
   }
 });
 
-// Jogos por data
-// Exemplo:
-// /api/matches?date=2026-09-13
+/* =========================
+   JOGOS POR DATA
+========================= */
+
 app.get("/api/matches", async (req, res) => {
   try {
-    const date = req.query.date || hojeUTC();
+    const date =
+      req.query.date || hojeUTC();
 
-    const data = await apiRequest(
-      `/api/v2/events/?date_from=${date}&date_to=${date}`
-    );
+    const data = await getAllMatches(date);
 
     res.json(data);
   } catch (error) {
-    console.error("Erro /api/matches:", error.message);
+    console.error(
+      "Erro /api/matches:",
+      error.message
+    );
 
     res.status(500).json({
       error: true,
@@ -112,16 +234,37 @@ app.get("/api/matches", async (req, res) => {
   }
 });
 
-// Detalhes de uma partida
+/* =========================
+   DETALHE DA PARTIDA
+========================= */
+
 app.get("/api/fixture/:id", async (req, res) => {
   try {
     const id = req.params.id;
 
-    const data = await apiRequest(`/api/v2/events/${id}/`);
+    const cacheKey = `fixture-${id}`;
+
+    const cached = getCache(
+      cacheKey,
+      30000
+    );
+
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const data = await apiRequest(
+      `/api/v2/events/${id}/`
+    );
+
+    setCache(cacheKey, data);
 
     res.json(data);
   } catch (error) {
-    console.error("Erro /api/fixture:", error.message);
+    console.error(
+      "Erro /api/fixture:",
+      error.message
+    );
 
     res.status(500).json({
       error: true,
@@ -130,6 +273,22 @@ app.get("/api/fixture/:id", async (req, res) => {
   }
 });
 
+/* =========================
+   CACHE INFO
+========================= */
+
+app.get("/api/cache", (req, res) => {
+  res.json({
+    entries: cache.size
+  });
+});
+
+/* =========================
+   SERVIDOR
+========================= */
+
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`RádioPlacar API rodando na porta ${PORT}`);
+  console.log(
+    `RádioPlacar API rodando na porta ${PORT}`
+  );
 });
