@@ -1,53 +1,42 @@
+// backend/server.js
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 
 import {
-  getDarkGames,
-  getDarkGame
-} from "./darkGames.js";
-
-import {
-  importDarkGames,
-  importAllDarkGames
-} from "./darkGamesSource.js";
-
-import {
-  enrichDarkGameLogos
-} from "./darkGamesLogos.js";
-
-dotenv.config();
+  getRadios,
+  getRadio,
+  getRadiosForMatch,
+  attachRadioToMatch,
+  detachRadioFromMatch,
+  clearMatchRadios,
+  getRadioStats,
+} from "./radios.js";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-const PORT =
-  process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001;
 
-const API_KEY =
-  process.env.API_FOOTBALL_KEY;
+// ======================================================
+// BSD - BZZOIRO SPORTS DATA
+// ======================================================
 
-const API_BASE =
-  "https://sports.bzzoiro.com";
+const API_BASE = "https://sports.bzzoiro.com/api/v2";
 
-/* =========================
-   CACHE
-========================= */
+// Mantemos o mesmo nome que já está no Render.
+const API_KEY = process.env.API_FOOTBALL_KEY;
 
 const cache = new Map();
 
-function getCache(key, maxAge) {
-  const item =
-    cache.get(key);
+function cacheGet(key) {
+  const item = cache.get(key);
 
   if (!item) return null;
 
-  if (
-    Date.now() - item.time >
-    maxAge
-  ) {
+  if (Date.now() > item.expires) {
     cache.delete(key);
     return null;
   }
@@ -55,697 +44,768 @@ function getCache(key, maxAge) {
   return item.data;
 }
 
-function setCache(key, data) {
+function cacheSet(key, data, ttlMs) {
   cache.set(key, {
-    time: Date.now(),
-    data
+    data,
+    expires: Date.now() + ttlMs,
   });
+
+  return data;
 }
 
-/* =========================
-   API BSD
-========================= */
+
+// ======================================================
+// DATA DO BRASIL
+// ======================================================
+
+function brasilDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+
+// ======================================================
+// REQUISIÇÃO BSD
+// ======================================================
 
 async function apiRequest(pathOrUrl) {
   if (!API_KEY) {
     throw new Error(
-      "API_FOOTBALL_KEY não configurada"
+      "API_FOOTBALL_KEY não configurada no Render"
     );
   }
 
-  const url =
-    pathOrUrl.startsWith("http")
-      ? pathOrUrl
-      : `${API_BASE}${pathOrUrl}`;
+  const url = pathOrUrl.startsWith("http")
+    ? pathOrUrl
+    : `${API_BASE}${pathOrUrl}`;
 
-  const response =
-    await fetch(url, {
-      headers: {
-        Authorization:
-          `Token ${API_KEY}`,
-        Accept:
-          "application/json"
-      }
-    });
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Token ${API_KEY}`,
+      Accept: "application/json",
+    },
+  });
+
+  const text = await response.text();
+
+  let data;
+
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = {
+      raw: text,
+    };
+  }
 
   if (!response.ok) {
-    const text =
-      await response.text();
-
-    throw new Error(
-      `Erro na API ${response.status}: ${text}`
+    const error = new Error(
+      `BSD respondeu ${response.status}`
     );
+
+    error.status = response.status;
+    error.data = data;
+
+    throw error;
   }
 
-  return response.json();
+  return data;
 }
 
-/* =========================
-   DATA
-========================= */
 
-function hojeUTC() {
-  return new Date()
-    .toISOString()
-    .slice(0, 10);
+// ======================================================
+// PAGINAÇÃO
+// ======================================================
+
+async function getPaginated(path, maxPages = 20) {
+  let next = path;
+
+  const results = [];
+
+  let page = 0;
+
+  while (next && page < maxPages) {
+    const data = await apiRequest(next);
+
+    if (Array.isArray(data)) {
+      results.push(...data);
+      break;
+    }
+
+    if (Array.isArray(data?.results)) {
+      results.push(...data.results);
+    }
+
+    next = data?.next || null;
+
+    page++;
+  }
+
+  return results;
 }
 
-/* =========================
-   TODAS AS PÁGINAS DOS JOGOS
-========================= */
+
+// ======================================================
+// PARTIDAS POR DATA
+// ======================================================
 
 async function getAllMatches(date) {
-  const cacheKey =
-    `matches-${date}`;
+  const cacheKey = `matches:${date}`;
 
-  const cached =
-    getCache(
-      cacheKey,
-      60000
-    );
+  const saved = cacheGet(cacheKey);
 
-  if (cached) {
-    return cached;
-  }
+  if (saved) return saved;
 
-  let url =
-    `/api/v2/events/?date_from=${date}` +
-    `&date_to=${date}` +
-    `&limit=50&offset=0`;
+  const path =
+    `/events/?date_from=${encodeURIComponent(date)}` +
+    `&date_to=${encodeURIComponent(date)}` +
+    `&limit=50`;
 
-  const allResults = [];
+  const matches = await getPaginated(path, 20);
 
-  let total = 0;
-  let pages = 0;
-
-  while (
-    url &&
-    pages < 20
-  ) {
-    const data =
-      await apiRequest(url);
-
-    pages += 1;
-
-    if (
-      Array.isArray(
-        data?.results
-      )
-    ) {
-      allResults.push(
-        ...data.results
-      );
-    }
-
-    if (
-      typeof data?.count ===
-      "number"
-    ) {
-      total =
-        data.count;
-    }
-
-    url =
-      data?.next || null;
-  }
-
-  const response = {
-    count:
-      total ||
-      allResults.length,
-
-    returned:
-      allResults.length,
-
-    pages,
-
-    results:
-      allResults
-  };
-
-  setCache(
+  return cacheSet(
     cacheKey,
-    response
+    matches,
+    60 * 1000
   );
-
-  return response;
 }
 
-/* =========================
-   TODAS AS PÁGINAS DAS LIGAS
-========================= */
+
+// ======================================================
+// AO VIVO
+// ======================================================
+
+async function getLiveMatches() {
+  const cacheKey = "live";
+
+  const saved = cacheGet(cacheKey);
+
+  if (saved) return saved;
+
+  const matches = await getPaginated(
+    "/events/live/?limit=50",
+    20
+  );
+
+  return cacheSet(
+    cacheKey,
+    matches,
+    20 * 1000
+  );
+}
+
+
+// ======================================================
+// CAMPEONATOS
+// ======================================================
 
 async function getAllLeagues() {
-  const cached =
-    getCache(
-      "leagues-all",
-      30 * 60 * 1000
-    );
+  const cacheKey = "leagues";
 
-  if (cached) {
-    return cached;
-  }
+  const saved = cacheGet(cacheKey);
 
-  let url =
-    "/api/v2/leagues/?limit=50&offset=0";
+  if (saved) return saved;
 
-  const allResults = [];
-
-  let total = 0;
-  let pages = 0;
-
-  while (
-    url &&
-    pages < 20
-  ) {
-    const data =
-      await apiRequest(url);
-
-    pages += 1;
-
-    if (
-      Array.isArray(
-        data?.results
-      )
-    ) {
-      allResults.push(
-        ...data.results
-      );
-    }
-
-    if (
-      typeof data?.count ===
-      "number"
-    ) {
-      total =
-        data.count;
-    }
-
-    url =
-      data?.next || null;
-  }
-
-  const response = {
-    count:
-      total ||
-      allResults.length,
-
-    returned:
-      allResults.length,
-
-    pages,
-
-    results:
-      allResults
-  };
-
-  setCache(
-    "leagues-all",
-    response
+  const leagues = await getPaginated(
+    "/leagues/?limit=50",
+    20
   );
 
-  return response;
+  return cacheSet(
+    cacheKey,
+    leagues,
+    30 * 60 * 1000
+  );
 }
 
-/* =========================
-   INÍCIO
-========================= */
 
-app.get(
-  "/",
-  (req, res) => {
+// ======================================================
+// HEALTH
+// ======================================================
+
+app.get("/", (_req, res) => {
+  res.json({
+    ok: true,
+    app: "radioplacar-api",
+    provider: "BSD - Bzzoiro Sports Data",
+    radioSystem: true,
+  });
+});
+
+
+app.get("/api/health", (_req, res) => {
+  res.json({
+    ok: true,
+
+    app: "radioplacar-api",
+
+    provider:
+      "BSD - Bzzoiro Sports Data",
+
+    apiConfigured:
+      Boolean(API_KEY),
+
+    radioSystem: true,
+
+    radios:
+      getRadioStats(),
+
+    cacheItems:
+      cache.size,
+
+    date:
+      brasilDate(),
+  });
+});
+
+
+// ======================================================
+// JOGOS AO VIVO
+// ======================================================
+
+app.get("/api/live", async (_req, res) => {
+  try {
+    const matches =
+      await getLiveMatches();
+
     res.json({
-      app:
-        "RádioPlacar API",
-
-      status:
-        "online",
-
-      version:
-        "1.6.0"
+      ok: true,
+      count: matches.length,
+      response: matches,
     });
+
+  } catch (error) {
+    console.error(
+      "ERRO /api/live:",
+      error
+    );
+
+    res
+      .status(error.status || 500)
+      .json({
+        ok: false,
+
+        error:
+          error.message,
+
+        details:
+          error.data || null,
+      });
   }
-);
+});
 
-/* =========================
-   HEALTH
-========================= */
 
-app.get(
-  "/api/health",
-  (req, res) => {
+// ======================================================
+// JOGOS DE HOJE
+// ======================================================
+
+app.get("/api/today", async (req, res) => {
+  try {
+    const date =
+      req.query.date ||
+      brasilDate();
+
+    const matches =
+      await getAllMatches(date);
+
     res.json({
       ok: true,
 
-      app:
-        "radioplacar-api",
+      date,
 
-      footballApi:
-        Boolean(API_KEY)
+      count:
+        matches.length,
+
+      response:
+        matches,
     });
+
+  } catch (error) {
+    console.error(
+      "ERRO /api/today:",
+      error
+    );
+
+    res
+      .status(error.status || 500)
+      .json({
+        ok: false,
+
+        error:
+          error.message,
+
+        details:
+          error.data || null,
+      });
   }
-);
+});
 
-/* =========================
-   JOGOS AO VIVO BSD
-========================= */
 
-app.get(
-  "/api/live",
-  async (req, res) => {
-    try {
-      const cached =
-        getCache(
-          "live",
-          20000
-        );
+// ======================================================
+// PARTIDAS POR DATA
+//
+// exemplo:
+// /api/matches?date=2026-09-14
+// ======================================================
 
-      if (cached) {
-        return res.json(
-          cached
-        );
-      }
+app.get("/api/matches", async (req, res) => {
+  try {
+    const date =
+      req.query.date ||
+      brasilDate();
 
-      const data =
-        await apiRequest(
-          "/api/v2/events/live/"
-        );
+    const matches =
+      await getAllMatches(date);
 
-      setCache(
-        "live",
-        data
-      );
+    res.json({
+      ok: true,
 
-      res.json(data);
+      date,
 
-    } catch (error) {
-      console.error(
-        "Erro /api/live:",
-        error.message
-      );
+      count:
+        matches.length,
 
-      res
-        .status(500)
-        .json({
-          error: true,
-          message:
-            error.message
-        });
-    }
+      response:
+        matches,
+    });
+
+  } catch (error) {
+    console.error(
+      "ERRO /api/matches:",
+      error
+    );
+
+    res
+      .status(error.status || 500)
+      .json({
+        ok: false,
+
+        error:
+          error.message,
+
+        details:
+          error.data || null,
+      });
   }
-);
+});
 
-/* =========================
-   JOGOS DE HOJE BSD
-========================= */
 
-app.get(
-  "/api/today",
-  async (req, res) => {
-    try {
-      const date =
-        hojeUTC();
-
-      const data =
-        await getAllMatches(
-          date
-        );
-
-      res.json(data);
-
-    } catch (error) {
-      console.error(
-        "Erro /api/today:",
-        error.message
-      );
-
-      res
-        .status(500)
-        .json({
-          error: true,
-          message:
-            error.message
-        });
-    }
-  }
-);
-
-/* =========================
-   JOGOS BSD POR DATA
-========================= */
-
-app.get(
-  "/api/matches",
-  async (req, res) => {
-    try {
-      const date =
-        req.query.date ||
-        hojeUTC();
-
-      const data =
-        await getAllMatches(
-          date
-        );
-
-      res.json(data);
-
-    } catch (error) {
-      console.error(
-        "Erro /api/matches:",
-        error.message
-      );
-
-      res
-        .status(500)
-        .json({
-          error: true,
-          message:
-            error.message
-        });
-    }
-  }
-);
-
-/* =========================
-   LIGAS BSD
-========================= */
-
-app.get(
-  "/api/leagues",
-  async (req, res) => {
-    try {
-      const data =
-        await getAllLeagues();
-
-      res.json(data);
-
-    } catch (error) {
-      console.error(
-        "Erro /api/leagues:",
-        error.message
-      );
-
-      res
-        .status(500)
-        .json({
-          error: true,
-          message:
-            error.message
-        });
-    }
-  }
-);
-
-/* =========================
-   DETALHE BSD
-========================= */
+// ======================================================
+// DETALHES DA PARTIDA
+// ======================================================
 
 app.get(
   "/api/fixture/:id",
   async (req, res) => {
+
     try {
       const id =
-        req.params.id;
-
-      const cacheKey =
-        `fixture-${id}`;
-
-      const cached =
-        getCache(
-          cacheKey,
-          30000
-        );
-
-      if (cached) {
-        return res.json(
-          cached
-        );
-      }
-
-      const data =
-        await apiRequest(
-          `/api/v2/events/${id}/`
-        );
-
-      setCache(
-        cacheKey,
-        data
-      );
-
-      res.json(data);
-
-    } catch (error) {
-      console.error(
-        "Erro /api/fixture:",
-        error.message
-      );
-
-      res
-        .status(500)
-        .json({
-          error: true,
-          message:
-            error.message
-        });
-    }
-  }
-);
-
-/* =========================
-   IMPORTAR TODOS OS
-   JOGOS DO ESCURO
-========================= */
-
-app.get(
-  "/api/dark-games/import",
-  async (req, res) => {
-    try {
-      const result =
-        await importAllDarkGames();
-
-      res.json({
-        ok: true,
-
-        source:
-          "FootballData",
-
-        imports:
-          result
-      });
-
-    } catch (error) {
-      console.error(
-        "Erro import dark-games:",
-        error.message
-      );
-
-      res
-        .status(500)
-        .json({
-          error: true,
-          message:
-            error.message
-        });
-    }
-  }
-);
-
-/* =========================
-   IMPORTAR UMA COMPETIÇÃO
-========================= */
-
-app.get(
-  "/api/dark-games/import/:source",
-  async (req, res) => {
-    try {
-      const result =
-        await importDarkGames(
-          req.params.source
-        );
-
-      res.json({
-        ok: true,
-        ...result
-      });
-
-    } catch (error) {
-      console.error(
-        "Erro import competição:",
-        error.message
-      );
-
-      res
-        .status(500)
-        .json({
-          error: true,
-          message:
-            error.message
-        });
-    }
-  }
-);
-
-/* =========================
-   ESCUDOS JOGOS DO ESCURO
-========================= */
-
-app.get(
-  "/api/dark-games/logos",
-  async (req, res) => {
-    try {
-      let games =
-        getDarkGames();
-
-      /*
-        O Render pode reiniciar e
-        apagar o Map da memória.
-        Se estiver vazio, importa
-        os jogos novamente.
-      */
-
-      if (
-        games.length === 0
-      ) {
-        await importAllDarkGames();
-
-        games =
-          getDarkGames();
-      }
-
-      const result =
-        await enrichDarkGameLogos();
-
-      res.json({
-        ok: true,
-        ...result
-      });
-
-    } catch (error) {
-      console.error(
-        "Erro escudos dark-games:",
-        error.message
-      );
-
-      res
-        .status(500)
-        .json({
-          error: true,
-          message:
-            error.message
-        });
-    }
-  }
-);
-
-/* =========================
-   LISTAR JOGOS DO ESCURO
-========================= */
-
-app.get(
-  "/api/dark-games",
-  (req, res) => {
-    try {
-      const date =
-        req.query.date ||
-        null;
-
-      const games =
-        getDarkGames(date);
-
-      res.json({
-        source:
-          "dark-games",
-
-        count:
-          games.length,
-
-        results:
-          games
-      });
-
-    } catch (error) {
-      console.error(
-        "Erro /api/dark-games:",
-        error.message
-      );
-
-      res
-        .status(500)
-        .json({
-          error: true,
-          message:
-            error.message
-        });
-    }
-  }
-);
-
-/* =========================
-   DETALHE JOGO DO ESCURO
-========================= */
-
-app.get(
-  "/api/dark-games/:id",
-  (req, res) => {
-    try {
-      const game =
-        getDarkGame(
+        encodeURIComponent(
           req.params.id
         );
 
-      if (!game) {
-        return res
-          .status(404)
-          .json({
-            error: true,
-            message:
-              "Jogo não encontrado"
-          });
+      const cacheKey =
+        `fixture:${id}`;
+
+      let fixture =
+        cacheGet(cacheKey);
+
+      if (!fixture) {
+        fixture =
+          await apiRequest(
+            `/events/${id}/`
+          );
+
+        cacheSet(
+          cacheKey,
+          fixture,
+          30 * 1000
+        );
       }
 
-      res.json(game);
+      // rádios brasileiras
+      // confirmadas para esta partida
+      const radios =
+        getRadiosForMatch(
+          req.params.id
+        );
+
+      res.json({
+        ok: true,
+
+        response:
+          fixture,
+
+        radios,
+      });
 
     } catch (error) {
       console.error(
-        "Erro /api/dark-games/:id:",
-        error.message
+        "ERRO /api/fixture:",
+        error
       );
 
       res
-        .status(500)
+        .status(error.status || 500)
         .json({
-          error: true,
-          message:
-            error.message
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
         });
     }
   }
 );
 
-/* =========================
-   CACHE
-========================= */
+
+// ======================================================
+// CAMPEONATOS
+// ======================================================
 
 app.get(
-  "/api/cache",
-  (req, res) => {
+  "/api/leagues",
+  async (_req, res) => {
+
+    try {
+      const leagues =
+        await getAllLeagues();
+
+      res.json({
+        ok: true,
+
+        count:
+          leagues.length,
+
+        response:
+          leagues,
+      });
+
+    } catch (error) {
+      console.error(
+        "ERRO /api/leagues:",
+        error
+      );
+
+      res
+        .status(error.status || 500)
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+
+// ======================================================
+// RÁDIOS BRASILEIRAS CADASTRADAS
+// ======================================================
+
+app.get(
+  "/api/radios",
+  (_req, res) => {
+
+    const radios =
+      getRadios();
+
     res.json({
-      entries:
-        cache.size
+      ok: true,
+
+      count:
+        radios.length,
+
+      response:
+        radios,
     });
   }
 );
 
-/* =========================
-   SERVIDOR
-========================= */
 
-app.listen(
-  PORT,
-  "0.0.0.0",
-  () => {
-    console.log(
-      `RádioPlacar API rodando na porta ${PORT}`
-    );
+// ======================================================
+// UMA RÁDIO
+// ======================================================
+
+app.get(
+  "/api/radios/:id",
+  (req, res) => {
+
+    const radio =
+      getRadio(
+        req.params.id
+      );
+
+    if (!radio) {
+      return res
+        .status(404)
+        .json({
+          ok: false,
+          error:
+            "Rádio não encontrada",
+        });
+    }
+
+    res.json({
+      ok: true,
+      response: radio,
+    });
   }
 );
+
+
+// ======================================================
+// RÁDIOS DE UMA PARTIDA
+//
+// exemplo:
+// /api/fixture/7259/radios
+// ======================================================
+
+app.get(
+  "/api/fixture/:id/radios",
+  (req, res) => {
+
+    const radios =
+      getRadiosForMatch(
+        req.params.id
+      );
+
+    res.json({
+      ok: true,
+
+      match_id:
+        String(
+          req.params.id
+        ),
+
+      count:
+        radios.length,
+
+      response:
+        radios,
+    });
+  }
+);
+
+
+// ======================================================
+// VINCULAR RÁDIO A UMA PARTIDA
+//
+// Isso será usado pelo nosso
+// mapeador automático mais adiante.
+//
+// POST
+// /api/fixture/7259/radios
+// ======================================================
+
+app.post(
+  "/api/fixture/:id/radios",
+  (req, res) => {
+
+    try {
+      const {
+        radio_id,
+        match_confirmed,
+        source,
+        source_url,
+        priority,
+      } = req.body;
+
+      if (!radio_id) {
+        return res
+          .status(400)
+          .json({
+            ok: false,
+            error:
+              "radio_id obrigatório",
+          });
+      }
+
+      const result =
+        attachRadioToMatch(
+          req.params.id,
+          radio_id,
+          {
+            match_confirmed:
+              match_confirmed === true,
+
+            source:
+              source || null,
+
+            source_url:
+              source_url || null,
+
+            priority:
+              Number.isInteger(
+                priority
+              )
+                ? priority
+                : 99,
+          }
+        );
+
+      res.json({
+        ok: true,
+        response: result,
+      });
+
+    } catch (error) {
+
+      res
+        .status(400)
+        .json({
+          ok: false,
+          error:
+            error.message,
+        });
+    }
+  }
+);
+
+
+// ======================================================
+// DESVINCULAR RÁDIO DA PARTIDA
+// ======================================================
+
+app.delete(
+  "/api/fixture/:matchId/radios/:radioId",
+  (req, res) => {
+
+    const removed =
+      detachRadioFromMatch(
+        req.params.matchId,
+        req.params.radioId
+      );
+
+    res.json({
+      ok: true,
+      removed,
+    });
+  }
+);
+
+
+// ======================================================
+// LIMPAR TODAS AS RÁDIOS DE UMA PARTIDA
+// ======================================================
+
+app.delete(
+  "/api/fixture/:id/radios",
+  (req, res) => {
+
+    const removed =
+      clearMatchRadios(
+        req.params.id
+      );
+
+    res.json({
+      ok: true,
+      removed,
+    });
+  }
+);
+
+
+// ======================================================
+// ESTATÍSTICAS DAS RÁDIOS
+// ======================================================
+
+app.get(
+  "/api/radio-stats",
+  (_req, res) => {
+
+    res.json({
+      ok: true,
+      response:
+        getRadioStats(),
+    });
+  }
+);
+
+
+// ======================================================
+// CACHE
+// ======================================================
+
+app.get(
+  "/api/cache",
+  (_req, res) => {
+
+    const items = [];
+
+    for (
+      const [key, value]
+      of cache.entries()
+    ) {
+
+      items.push({
+        key,
+
+        expires:
+          new Date(
+            value.expires
+          ).toISOString(),
+
+        valid:
+          Date.now() <
+          value.expires,
+      });
+    }
+
+    res.json({
+      ok: true,
+
+      count:
+        items.length,
+
+      response:
+        items,
+    });
+  }
+);
+
+
+// ======================================================
+// 404
+// ======================================================
+
+app.use((req, res) => {
+  res.status(404).json({
+    ok: false,
+
+    error:
+      "Rota não encontrada",
+
+    path:
+      req.originalUrl,
+  });
+});
+
+
+// ======================================================
+// SERVIDOR
+// ======================================================
+
+app.listen(PORT, () => {
+  console.log(
+    `RádioPlacar rodando na porta ${PORT}`
+  );
+
+  console.log(
+    `BSD configurada: ${Boolean(API_KEY)}`
+  );
+
+  console.log(
+    `Rádios cadastradas: ${getRadios().length}`
+  );
+});
