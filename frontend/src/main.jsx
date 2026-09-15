@@ -1847,13 +1847,18 @@ function CompetitionScreen({
         </div>
       ) : (
         <StandingsPlaceholder
-          competition={competition}
-        />
-      )}
-    </main>
-  );
-}
-
+  competition={{
+    ...competition,
+    league_id:
+      competition?.league_id ??
+      competition?.id ??
+      9,
+    season_id:
+      competition?.season_id ??
+      competition?.season?.id ??
+      28,
+  }}
+/>
 // ======================================================
 // CLASSIFICAÇÃO
 // ======================================================
