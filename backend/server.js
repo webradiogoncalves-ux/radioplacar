@@ -785,79 +785,47 @@ app.get(
       const leagues =
         await getAllLeagues();
 
-      const competitions = [];
-
-      for (const league of leagues) {
-        const leagueId =
-          league?.id ??
-          league?.league_id ??
-          null;
-
-        if (!leagueId) {
-          continue;
-        }
-
-        try {
-          const seasons =
-            await getLeagueSeasons(
-              leagueId
-            );
+      const competitions =
+        leagues.map((league) => {
+          const leagueId =
+            league?.id ??
+            league?.league_id ??
+            league?.id_liga ??
+            league?.id_da_liga ??
+            null;
 
           const currentSeason =
-            findCurrentSeason(
-              seasons
-            );
+            league?.current_season ??
+            league?.temporada_atual ??
+            null;
 
-          competitions.push({
+          const seasonId =
+            currentSeason?.id ??
+            currentSeason?.season_id ??
+            currentSeason?.id_temporada ??
+            currentSeason?.id_da_temporada ??
+            null;
+
+          return {
             ...league,
 
             league_id:
               leagueId,
 
             season_id:
-              currentSeason
-                ? getSeasonId(
-                    currentSeason
-                  )
-                : null,
+              seasonId,
 
             season:
               currentSeason,
 
             league_logo:
-              getLeagueLogo(
-                leagueId
-              ),
-          });
-        } catch (error) {
-          console.error(
-            `Erro temporadas liga ${leagueId}:`,
-            error?.message
-          );
-
-          /*
-           * O campeonato continua na lista,
-           * mas sem inventar season_id.
-           */
-          competitions.push({
-            ...league,
-
-            league_id:
-              leagueId,
-
-            season_id:
-              null,
-
-            season:
-              null,
-
-            league_logo:
-              getLeagueLogo(
-                leagueId
-              ),
-          });
-        }
-      }
+              leagueId !== null
+                ? getLeagueLogo(
+                    leagueId
+                  )
+                : null,
+          };
+        });
 
       res.json({
         ok: true,
