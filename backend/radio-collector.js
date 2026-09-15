@@ -1,112 +1,97 @@
 // backend/radio-collector.js
-
-// ========================================================
-// RADIOPLACAR - COLETOR DE TRANSMISSÕES
-// ========================================================
 //
-// Função deste arquivo:
+// RadioPlacar
+// Coletor público de relações:
+// PARTIDA -> RÁDIO
 //
-// RadiosNet / Radios.com.br
-//          ↓
-// encontra páginas de partidas
-//          ↓
-// lê as rádios relacionadas à partida
-//          ↓
-// converte nomes conhecidos para IDs do RadioPlacar
-//          ↓
-// entrega:
-// {
-//   radio_id,
-//   home_team,
-//   away_team,
-//   source,
-//   source_url,
-//   priority
-// }
+// Fonte atual:
+// OuviRádios
 //
 // IMPORTANTE:
+// - Não captura áudio.
+// - Não extrai stream privado.
+// - Não tenta contornar bloqueios.
+// - Usa somente informações públicas de partidas e rádios.
 //
-// - NÃO captura áudio.
-// - NÃO captura stream.
-// - NÃO inventa transmissão.
-// - Rádio só é retornada quando aparece na página
-//   específica daquela partida.
-// ========================================================
+
+const OUVIRADIOS_BASE =
+  "https://ouviradios.com.br";
+
+const FOOTBALL_URL =
+  `${OUVIRADIOS_BASE}/futebol-ao-vivo`;
+
+const FETCH_TIMEOUT = 15000;
 
 
-const RADIOSNET_BASE = "https://www.radios.com.br";
-
-const FETCH_TIMEOUT = 12000;
-
-
-// ========================================================
+// ======================================================
 // CABEÇALHOS
-// ========================================================
+// ======================================================
 
 const HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (compatible; RadioPlacar/1.0; +https://github.com/)",
   Accept:
-    "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "text/html,application/xhtml+xml",
+
   "Accept-Language":
-    "pt-BR,pt;q=0.9,en;q=0.7",
+    "pt-BR,pt;q=0.9,en;q=0.8",
+
+  "User-Agent":
+    "RadioPlacar/1.0",
 };
 
 
-// ========================================================
+// ======================================================
 // NORMALIZAÇÃO
-// ========================================================
+// ======================================================
 
 function normalize(value) {
   return String(value || "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
     .toLowerCase()
-    .replace(/&amp;/gi, "&")
-    .replace(/&#39;/gi, "'")
-    .replace(/&quot;/gi, '"')
-    .replace(/&nbsp;/gi, " ")
-    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g, " e ")
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 
-// ========================================================
+// ======================================================
 // DECODIFICAR HTML
-// ========================================================
+// ======================================================
 
 function decodeHtml(value) {
   return String(value || "")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
-    .replace(/&#x27;/gi, "'")
+    .replace(/&apos;/gi, "'")
     .replace(/&nbsp;/gi, " ")
-    .replace(/&ccedil;/gi, "ç")
-    .replace(/&atilde;/gi, "ã")
-    .replace(/&otilde;/gi, "õ")
-    .replace(/&aacute;/gi, "á")
-    .replace(/&eacute;/gi, "é")
-    .replace(/&iacute;/gi, "í")
-    .replace(/&oacute;/gi, "ó")
-    .replace(/&uacute;/gi, "ú")
-    .replace(/&acirc;/gi, "â")
-    .replace(/&ecirc;/gi, "ê")
-    .replace(/&ocirc;/gi, "ô");
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
 }
 
 
-// ========================================================
+// ======================================================
 // REMOVER TAGS
-// ========================================================
+// ======================================================
 
 function stripTags(value) {
   return decodeHtml(
     String(value || "")
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(
+        /<script[\s\S]*?<\/script>/gi,
+        " "
+      )
+      .replace(
+        /<style[\s\S]*?<\/style>/gi,
+        " "
+      )
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<\/p>/gi, " ")
+      .replace(/<\/div>/gi, " ")
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ")
       .trim()
@@ -114,239 +99,193 @@ function stripTags(value) {
 }
 
 
-// ========================================================
-// FETCH COM TIMEOUT
-// ========================================================
+// ======================================================
+// FETCH
+// ======================================================
 
 async function fetchHtml(url) {
   const controller =
     new AbortController();
 
-  const timer =
-    setTimeout(() => {
-      controller.abort();
-    }, FETCH_TIMEOUT);
+  const timeout =
+    setTimeout(
+      () => controller.abort(),
+      FETCH_TIMEOUT
+    );
 
   try {
     const response =
       await fetch(url, {
         headers: HEADERS,
-        signal: controller.signal,
-        redirect: "follow",
+        signal:
+          controller.signal,
+        redirect:
+          "follow",
       });
 
     if (!response.ok) {
       throw new Error(
-        `RadiosNet respondeu ${response.status}`
+        `OuviRádios respondeu ${response.status}`
       );
     }
 
     return await response.text();
 
+  } catch (error) {
+    if (
+      error?.name ===
+      "AbortError"
+    ) {
+      throw new Error(
+        "Tempo limite ao consultar OuviRádios"
+      );
+    }
+
+    throw error;
+
   } finally {
-    clearTimeout(timer);
+    clearTimeout(timeout);
   }
 }
 
 
-// ========================================================
-// CATÁLOGO DE ALIASES
-// ========================================================
-//
-// Aqui transformamos o nome exibido pela RadiosNet
-// no ID existente no nosso radios.js.
-//
-// Cidade/UF é usada quando existe risco de confundir
-// emissoras com nomes parecidos.
-// ========================================================
+// ======================================================
+// REGRAS DAS NOSSAS RÁDIOS
+// ======================================================
 
 const RADIO_RULES = [
-
-  // ------------------------------------------------------
-  // RIO GRANDE DO SUL
-  // ------------------------------------------------------
-
   {
     id: "grenal",
-    names: [
+    aliases: [
       "radio grenal",
-      "radio grenal 95 9 fm",
+      "grenal",
     ],
-    city: "porto alegre",
-    state: "rs",
   },
 
   {
     id: "gaucha",
-    names: [
+    aliases: [
       "radio gaucha",
-      "radio gaucha 93 7 fm",
+      "gaucha",
     ],
-    city: "porto alegre",
-    state: "rs",
   },
 
   {
     id: "guaiba",
-    names: [
+    aliases: [
       "radio guaiba",
-      "radio guaiba 101 3 fm",
+      "guaiba",
     ],
-    city: "porto alegre",
-    state: "rs",
   },
 
   {
     id: "caxias",
-    names: [
+    aliases: [
       "radio caxias",
-      "radio caxias 93 5 fm",
+      "caxias",
     ],
-    city: "caxias do sul",
-    state: "rs",
   },
 
   {
     id: "gaucha-serra",
-    names: [
+    aliases: [
       "radio gaucha serra",
       "gaucha serra",
     ],
-    city: "caxias do sul",
-    state: "rs",
   },
-
-
-  // ------------------------------------------------------
-  // RIO DE JANEIRO
-  // ------------------------------------------------------
 
   {
     id: "tupi",
-    names: [
+    aliases: [
       "super radio tupi",
-      "super radio tupi 96 5 fm",
       "radio tupi",
+      "tupi",
     ],
-    city: "rio de janeiro",
-    state: "rj",
   },
 
   {
     id: "cbn-rio",
-    names: [
-      "radio cbn rio",
-      "radio cbn rio 92 5 fm",
+    aliases: [
       "cbn rio",
+      "radio cbn rio",
     ],
-    city: "rio de janeiro",
-    state: "rj",
   },
 
   {
     id: "radio-globo-rj",
-    names: [
-      "radio globo",
-      "radio globo 98 1 fm",
+    aliases: [
+      "radio globo rj",
+      "radio globo rio",
+      "globo rj",
     ],
-    city: "rio de janeiro",
-    state: "rj",
   },
-
-
-  // ------------------------------------------------------
-  // MINAS GERAIS
-  // ------------------------------------------------------
 
   {
     id: "itatiaia",
-    names: [
+    aliases: [
       "radio itatiaia",
-      "radio itatiaia 610 am 95 7 fm",
       "itatiaia",
     ],
-    city: "belo horizonte",
-    state: "mg",
   },
 
   {
     id: "inconfidencia",
-    names: [
+    aliases: [
       "radio inconfidencia",
-      "radio inconfidencia 880 am",
+      "inconfidencia",
     ],
-    city: "belo horizonte",
-    state: "mg",
   },
-
-
-  // ------------------------------------------------------
-  // SÃO PAULO
-  // ------------------------------------------------------
 
   {
     id: "bandeirantes-sp",
-    names: [
+    aliases: [
       "radio bandeirantes",
-      "radio bandeirantes 107 3 fm",
+      "bandeirantes sp",
+      "bandeirantes sao paulo",
     ],
-    city: "sao paulo",
-    state: "sp",
   },
 
   {
     id: "jovem-pan",
-    names: [
+    aliases: [
       "radio jovem pan news",
       "jovem pan news",
+      "radio jovem pan",
       "jovem pan",
     ],
-    city: "sao paulo",
-    state: "sp",
   },
 
   {
     id: "cbn-sp",
-    names: [
-      "radio cbn sao paulo",
-      "radio cbn sao paulo 90 5 fm",
+    aliases: [
       "cbn sao paulo",
+      "cbn sp",
+      "radio cbn sao paulo",
     ],
-    city: "sao paulo",
-    state: "sp",
   },
 
   {
     id: "energia97",
-    names: [
-      "radio energia 97 7 fm",
+    aliases: [
+      "energia 97 fm",
       "energia 97",
-      "radio energia 97",
     ],
-    city: "sao paulo",
-    state: "sp",
   },
-
-
-  // ------------------------------------------------------
-  // BAHIA
-  // ------------------------------------------------------
 
   {
     id: "sociedade-ba",
-    names: [
+    aliases: [
       "radio sociedade",
-      "radio sociedade da bahia",
+      "sociedade da bahia",
+      "sociedade ba",
     ],
-    city: "salvador",
-    state: "ba",
   },
 ];
 
 
-// ========================================================
-// IDENTIFICAR RÁDIO
-// ========================================================
+// ======================================================
+// IDENTIFICAR UMA DAS NOSSAS RÁDIOS
+// ======================================================
 
 export function identifyRadio(
   radioName,
@@ -356,429 +295,559 @@ export function identifyRadio(
   const name =
     normalize(radioName);
 
-  const normalizedCity =
-    normalize(city);
-
-  const normalizedState =
-    normalize(state);
+  const location =
+    normalize(
+      `${city} ${state}`
+    );
 
   if (!name) {
     return null;
   }
 
-  for (const rule of RADIO_RULES) {
+  // ----------------------------------
+  // Evita confundir Gaúcha Serra
+  // com Rádio Gaúcha normal.
+  // ----------------------------------
 
-    const nameMatches =
-      rule.names.some((alias) => {
-        const normalizedAlias =
-          normalize(alias);
+  if (
+    name.includes(
+      "gaucha serra"
+    )
+  ) {
+    return "gaucha-serra";
+  }
 
-        return (
-          name === normalizedAlias ||
-          name.includes(normalizedAlias) ||
-          normalizedAlias.includes(name)
-        );
-      });
+  // ----------------------------------
+  // CBN
+  // ----------------------------------
 
-    if (!nameMatches) {
-      continue;
+  if (
+    name.includes("cbn")
+  ) {
+    if (
+      name.includes(
+        "sao paulo"
+      ) ||
+      name.includes("cbn sp") ||
+      location.includes(
+        "sao paulo"
+      )
+    ) {
+      return "cbn-sp";
     }
-
-    // Se temos cidade na página,
-    // usamos para evitar emissora errada.
 
     if (
-      rule.city &&
-      normalizedCity &&
-      normalize(rule.city) !== normalizedCity
+      name.includes("rio") ||
+      location.includes(
+        "rio de janeiro"
+      )
     ) {
-      continue;
+      return "cbn-rio";
     }
+  }
 
+  // ----------------------------------
+  // Bandeirantes
+  // ----------------------------------
+
+  if (
+    name.includes(
+      "bandeirantes"
+    )
+  ) {
     if (
-      rule.state &&
-      normalizedState &&
-      normalize(rule.state) !== normalizedState
+      location.includes(
+        "porto alegre"
+      )
     ) {
-      continue;
+      return null;
     }
 
-    return rule.id;
+    return "bandeirantes-sp";
+  }
+
+  // ----------------------------------
+  // TMC continua sem mapeamento
+  // automático por ambiguidade.
+  // ----------------------------------
+
+  if (
+    name.includes("tmc")
+  ) {
+    return null;
+  }
+
+  for (
+    const rule
+    of RADIO_RULES
+  ) {
+    for (
+      const alias
+      of rule.aliases
+    ) {
+      const normalizedAlias =
+        normalize(alias);
+
+      if (
+        name ===
+          normalizedAlias ||
+        name.includes(
+          normalizedAlias
+        )
+      ) {
+        return rule.id;
+      }
+    }
   }
 
   return null;
 }
 
 
-// ========================================================
-// EXTRAIR LINKS DE PARTIDAS
-// ========================================================
+// ======================================================
+// EXTRAIR LINKS DAS PARTIDAS
+//
+// Estrutura pública:
+// /jogos-futebol/time-a-x-time-b
+// ======================================================
 
-export function extractMatchLinks(html) {
-
+export function extractMatchLinks(
+  html
+) {
   const links =
     new Set();
 
   const regex =
-    /href=["']([^"']*\/radio\/futebol\/[^"']+)["']/gi;
+    /href\s*=\s*["']([^"']*\/jogos-futebol\/[^"'?#]+[^"']*)["']/gi;
 
   let match;
 
   while (
-    (match = regex.exec(html)) !== null
+    (
+      match =
+        regex.exec(html)
+    ) !== null
   ) {
-    let url =
-      decodeHtml(match[1]);
+    let href =
+      decodeHtml(
+        match[1]
+      ).trim();
 
-    if (!url) {
+    if (!href) {
       continue;
     }
 
-    if (
-      url.startsWith("/")
-    ) {
-      url =
-        `${RADIOSNET_BASE}${url}`;
-    }
+    try {
+      const url =
+        new URL(
+          href,
+          OUVIRADIOS_BASE
+        );
 
-    if (
-      url.startsWith(
-        `${RADIOSNET_BASE}/radio/futebol/`
-      )
-    ) {
-      links.add(url);
-    }
-  }
+      if (
+        url.hostname !==
+        "ouviradios.com.br"
+      ) {
+        continue;
+      }
 
-  return [...links];
-}
+      if (
+        !url.pathname.startsWith(
+          "/jogos-futebol/"
+        )
+      ) {
+        continue;
+      }
 
-
-// ========================================================
-// EXTRAIR TÍTULO DA PARTIDA
-// ========================================================
-
-function extractPageTitle(html) {
-
-  let match =
-    html.match(
-      /<h1[^>]*>([\s\S]*?)<\/h1>/i
-    );
-
-  if (match) {
-    return stripTags(match[1]);
-  }
-
-  match =
-    html.match(
-      /<title[^>]*>([\s\S]*?)<\/title>/i
-    );
-
-  if (match) {
-    return stripTags(match[1])
-      .replace(
-        /\s+ao vivo.*$/i,
-        ""
-      )
-      .trim();
-  }
-
-  return "";
-}
-
-
-// ========================================================
-// SEPARAR TIMES
-// ========================================================
-
-export function splitMatchTitle(title) {
-
-  let clean =
-    String(title || "")
-      .replace(
-        /^futebol ao vivo:\s*/i,
-        ""
-      )
-      .replace(
-        /\s*\|\s*radios.*$/i,
-        ""
-      )
-      .trim();
-
-  // Formato principal:
-  // Internacional x Grêmio
-
-  let parts =
-    clean.split(/\s+x\s+/i);
-
-  if (parts.length === 2) {
-    return {
-      home_team:
-        parts[0].trim(),
-
-      away_team:
-        parts[1].trim(),
-    };
-  }
-
-  // Algumas páginas podem usar "vs"
-
-  parts =
-    clean.split(/\s+vs\.?\s+/i);
-
-  if (parts.length === 2) {
-    return {
-      home_team:
-        parts[0].trim(),
-
-      away_team:
-        parts[1].trim(),
-    };
-  }
-
-  return null;
-}
-
-
-// ========================================================
-// EXTRAIR BLOCOS DE RÁDIOS
-// ========================================================
-
-function extractRadioBlocks(html) {
-
-  const results = [];
-
-  // A página possui nomes de rádio normalmente
-  // dentro de títulos h3.
-
-  const regex =
-    /<h3[^>]*>([\s\S]*?)<\/h3>/gi;
-
-  let match;
-
-  while (
-    (match = regex.exec(html)) !== null
-  ) {
-
-    const radioName =
-      stripTags(match[1]);
-
-    if (!radioName) {
-      continue;
-    }
-
-    // Pegamos trecho depois do h3 para tentar
-    // descobrir cidade / estado.
-
-    const start =
-      match.index;
-
-    const block =
-      html.slice(
-        start,
-        start + 1800
+      links.add(
+        `${url.origin}${url.pathname}`
       );
 
-    const plain =
-      stripTags(block);
-
-    results.push({
-      radio_name:
-        radioName,
-
-      context:
-        plain,
-    });
+    } catch {
+      // Ignora link inválido.
+    }
   }
 
-  return results;
+  return [
+    ...links,
+  ];
 }
 
 
-// ========================================================
-// EXTRAIR CIDADE / UF
-// ========================================================
+// ======================================================
+// TIMES PELO SLUG
+//
+// Exemplo:
+// fluminense-x-platense
+// ======================================================
 
-function extractLocation(context) {
+export function splitMatchTitle(
+  value
+) {
+  let text =
+    String(value || "")
+      .trim();
 
-  const text =
-    String(context || "");
+  try {
+    if (
+      text.startsWith(
+        "http"
+      )
+    ) {
+      const url =
+        new URL(text);
 
-  // Exemplos:
-  //
-  // Porto Alegre / RS - Brasil
-  // Rio de Janeiro / RJ - Brasil
-  // Belo Horizonte / MG - Brasil
-
-  const match =
-    text.match(
-      /([A-Za-zÀ-ÿ0-9 .'-]+)\s*\/\s*([A-Z]{2})\s*-\s*Brasil/i
-    );
-
-  if (!match) {
-    return {
-      city: "",
-      state: "",
-    };
+      text =
+        url.pathname
+          .split("/")
+          .filter(Boolean)
+          .pop() ||
+        "";
+    }
+  } catch {
+    // Continua com texto.
   }
 
-  let city =
-    match[1]
+  text =
+    decodeURIComponent(text)
+      .replace(/-/g, " ")
       .replace(/\s+/g, " ")
       .trim();
 
-  // Como o contexto começa pelo nome da rádio,
-  // pode haver texto sobrando antes da cidade.
-  // Pegamos a última parte razoável.
+  /*
+   * O slug usa "-x-".
+   * Depois da conversão vira " x ".
+   */
 
-  const pieces =
-    city.split(/\s{2,}/);
+  const parts =
+    text.split(
+      /\s+x\s+/i
+    );
 
-  if (pieces.length > 1) {
-    city =
-      pieces[
-        pieces.length - 1
-      ];
+  if (
+    parts.length !== 2
+  ) {
+    return null;
+  }
+
+  const home =
+    parts[0].trim();
+
+  const away =
+    parts[1].trim();
+
+  if (
+    !home ||
+    !away
+  ) {
+    return null;
   }
 
   return {
-    city,
-    state:
-      match[2]
-        .toUpperCase(),
+    home_team:
+      home,
+
+    away_team:
+      away,
   };
 }
 
 
-// ========================================================
-// EXTRAIR RÁDIOS DE UMA PARTIDA
-// ========================================================
+// ======================================================
+// EXTRAIR TIMES PELO HTML
+//
+// Prioriza o título:
+// "Fluminense x Platense ao vivo"
+// ======================================================
+
+function extractTeamsFromPage(
+  html,
+  url
+) {
+  const titleMatch =
+    html.match(
+      /<h1[^>]*>([\s\S]*?)<\/h1>/i
+    );
+
+  if (titleMatch) {
+    const title =
+      stripTags(
+        titleMatch[1]
+      )
+        .replace(
+          /\s+ao vivo[\s\S]*$/i,
+          ""
+        )
+        .trim();
+
+    const parts =
+      title.split(
+        /\s+x\s+/i
+      );
+
+    if (
+      parts.length >= 2
+    ) {
+      const home =
+        parts[0].trim();
+
+      const away =
+        parts[1]
+          .replace(
+            /\s+\d{1,2}\/\d{1,2}\/\d{4}[\s\S]*$/i,
+            ""
+          )
+          .trim();
+
+      if (
+        home &&
+        away
+      ) {
+        return {
+          home_team:
+            home,
+
+          away_team:
+            away,
+        };
+      }
+    }
+  }
+
+  return splitMatchTitle(
+    url
+  );
+}
+
+
+// ======================================================
+// PEGAR BLOCO "TRANSMISSÕES AO VIVO"
+//
+// Isso impede que rádios do rodapé ou de
+// "outros jogos" sejam confundidas com
+// rádios desta partida.
+// ======================================================
+
+function getTransmissionSection(
+  html
+) {
+  const startRegex =
+    /Transmiss(?:ões|&otilde;es)\s+ao\s+Vivo/i;
+
+  const start =
+    html.search(
+      startRegex
+    );
+
+  if (start < 0) {
+    return "";
+  }
+
+  const rest =
+    html.slice(start);
+
+  const endPatterns = [
+    /<h2[^>]*>\s*Outros\s+Jogos/i,
+    /<h3[^>]*>\s*Outros\s+Jogos/i,
+    />\s*Outros\s+Jogos\s*</i,
+    /id=["'][^"']*outros[^"']*["']/i,
+  ];
+
+  let end =
+    rest.length;
+
+  for (
+    const pattern
+    of endPatterns
+  ) {
+    const found =
+      rest.search(pattern);
+
+    if (
+      found > 0 &&
+      found < end
+    ) {
+      end = found;
+    }
+  }
+
+  return rest.slice(
+    0,
+    end
+  );
+}
+
+
+// ======================================================
+// EXTRAIR RÁDIOS DA PÁGINA DA PARTIDA
+// ======================================================
 
 export function extractRadiosFromMatchPage(
   html,
   sourceUrl
 ) {
+  const section =
+    getTransmissionSection(
+      html
+    );
 
-  const title =
-    extractPageTitle(html);
-
-  const teams =
-    splitMatchTitle(title);
-
-  if (!teams) {
-    return {
-      ok: false,
-      source_url:
-        sourceUrl,
-
-      title,
-
-      transmissions: [],
-      ignored: [],
-
-      error:
-        "Não foi possível identificar os times",
-    };
+  if (!section) {
+    return [];
   }
 
-  const blocks =
-    extractRadioBlocks(html);
+  const found =
+    new Map();
 
-  const transmissions = [];
-  const ignored = [];
+  /*
+   * Primeiro tentamos ALT das imagens.
+   *
+   * O site publica nomes como:
+   * alt="Rádio Globo RJ"
+   */
 
-  let priority = 1;
+  const altRegex =
+    /<img\b[^>]*\balt\s*=\s*["']([^"']+)["'][^>]*>/gi;
 
-  for (const block of blocks) {
+  let match;
 
-    const location =
-      extractLocation(
-        block.context
-      );
+  while (
+    (
+      match =
+        altRegex.exec(section)
+    ) !== null
+  ) {
+    let radioName =
+      decodeHtml(
+        match[1]
+      )
+        .replace(
+          /^\s*(?:logo|imagem)\s+(?:da\s+)?/i,
+          ""
+        )
+        .trim();
 
-    const radioId =
-      identifyRadio(
-        block.radio_name,
-        location.city,
-        location.state
-      );
-
-    if (!radioId) {
-
-      ignored.push({
-        radio_name:
-          block.radio_name,
-
-        city:
-          location.city,
-
-        state:
-          location.state,
-      });
-
+    if (!radioName) {
       continue;
     }
 
-    transmissions.push({
+    const radioId =
+      identifyRadio(
+        radioName
+      );
 
-      radio_id:
+    if (!radioId) {
+      continue;
+    }
+
+    if (
+      !found.has(
+        radioId
+      )
+    ) {
+      found.set(
         radioId,
+        {
+          radio_id:
+            radioId,
 
-      radio_name:
-        block.radio_name,
+          radio_name:
+            radioName,
 
-      home_team:
-        teams.home_team,
+          source:
+            "OuviRádios",
 
-      away_team:
-        teams.away_team,
-
-      source:
-        "RadiosNet",
-
-      source_url:
-        sourceUrl,
-
-      priority,
-
-      location,
-    });
-
-    priority++;
+          source_url:
+            sourceUrl,
+        }
+      );
+    }
   }
 
-  return {
-    ok: true,
+  /*
+   * Segunda tentativa:
+   * procura os aliases diretamente
+   * no texto da seção.
+   *
+   * Isso ajuda se o HTML mudar e o
+   * nome não estiver mais no ALT.
+   */
 
-    title,
+  const text =
+    stripTags(
+      section
+    );
 
-    home_team:
-      teams.home_team,
+  const normalizedText =
+    normalize(
+      text
+    );
 
-    away_team:
-      teams.away_team,
+  for (
+    const rule
+    of RADIO_RULES
+  ) {
+    if (
+      found.has(
+        rule.id
+      )
+    ) {
+      continue;
+    }
 
-    source_url:
-      sourceUrl,
+    const aliasFound =
+      rule.aliases.find(
+        (alias) =>
+          normalizedText.includes(
+            normalize(alias)
+          )
+      );
 
-    transmissions,
+    if (!aliasFound) {
+      continue;
+    }
 
-    ignored,
-  };
+    found.set(
+      rule.id,
+      {
+        radio_id:
+          rule.id,
+
+        radio_name:
+          aliasFound,
+
+        source:
+          "OuviRádios",
+
+        source_url:
+          sourceUrl,
+      }
+    );
+  }
+
+  return [
+    ...found.values(),
+  ];
 }
 
 
-// ========================================================
+// ======================================================
 // COLETAR UMA PÁGINA DE PARTIDA
-// ========================================================
+// ======================================================
 
 export async function collectMatchPage(
   url
 ) {
+  const parsed =
+    new URL(
+      url,
+      OUVIRADIOS_BASE
+    );
 
   if (
-    !String(url).startsWith(
-      `${RADIOSNET_BASE}/radio/futebol/`
+    parsed.hostname !==
+      "ouviradios.com.br" ||
+    !parsed.pathname.startsWith(
+      "/jogos-futebol/"
     )
   ) {
     throw new Error(
@@ -786,71 +855,160 @@ export async function collectMatchPage(
     );
   }
 
-  const html =
-    await fetchHtml(url);
-
-  return extractRadiosFromMatchPage(
-    html,
-    url
-  );
-}
-
-
-// ========================================================
-// COLETAR PÁGINA PRINCIPAL DE FUTEBOL
-// ========================================================
-
-export async function collectFootballPage() {
-
-  const url =
-    `${RADIOSNET_BASE}/futebol`;
+  const safeUrl =
+    `${parsed.origin}${parsed.pathname}`;
 
   const html =
-    await fetchHtml(url);
+    await fetchHtml(
+      safeUrl
+    );
 
-  const matchLinks =
-    extractMatchLinks(html);
+  const teams =
+    extractTeamsFromPage(
+      html,
+      safeUrl
+    );
+
+  if (!teams) {
+    return {
+      ok: false,
+
+      source:
+        "OuviRádios",
+
+      source_url:
+        safeUrl,
+
+      error:
+        "Não foi possível identificar os times",
+
+      radios: [],
+    };
+  }
+
+  const radios =
+    extractRadiosFromMatchPage(
+      html,
+      safeUrl
+    );
 
   return {
     ok: true,
+
     source:
-      "RadiosNet",
+      "OuviRádios",
 
     source_url:
-      url,
+      safeUrl,
 
-    matches_found:
-      matchLinks.length,
+    home_team:
+      teams.home_team,
 
-    match_links:
-      matchLinks,
+    away_team:
+      teams.away_team,
+
+    radios,
+
+    radios_found:
+      radios.length,
   };
 }
 
 
-// ========================================================
-// COLETAR TODAS AS PARTIDAS DISPONÍVEIS
-// ========================================================
+// ======================================================
+// COLETAR A AGENDA DE FUTEBOL
+// ======================================================
+
+export async function collectFootballPage(
+  date = null
+) {
+  let url =
+    FOOTBALL_URL;
+
+  if (date) {
+    url +=
+      `?data=${encodeURIComponent(date)}`;
+  }
+
+  const html =
+    await fetchHtml(
+      url
+    );
+
+  const matchLinks =
+    extractMatchLinks(
+      html
+    );
+
+  return {
+    ok: true,
+
+    source:
+      "OuviRádios",
+
+    source_url:
+      url,
+
+    match_links:
+      matchLinks,
+
+    match_pages_found:
+      matchLinks.length,
+  };
+}
+
+
+// ======================================================
+// PAUSA EDUCADA ENTRE REQUISIÇÕES
+// ======================================================
+
+function sleep(ms) {
+  return new Promise(
+    (resolve) =>
+      setTimeout(
+        resolve,
+        ms
+      )
+  );
+}
+
+
+// ======================================================
+// COLETAR TRANSMISSÕES
+// ======================================================
 
 export async function collectTransmissions(
   options = {}
 ) {
+  const maxMatchesRaw =
+    Number(
+      options.maxMatches ??
+      40
+    );
 
   const maxMatches =
-    Number.isInteger(
-      options.maxMatches
+    Number.isFinite(
+      maxMatchesRaw
     )
       ? Math.max(
           1,
           Math.min(
-            options.maxMatches,
+            Math.trunc(
+              maxMatchesRaw
+            ),
             100
           )
         )
       : 40;
 
+  const date =
+    options.date ||
+    null;
+
   const football =
-    await collectFootballPage();
+    await collectFootballPage(
+      date
+    );
 
   const links =
     football.match_links.slice(
@@ -858,67 +1016,116 @@ export async function collectTransmissions(
       maxMatches
     );
 
-  const transmissions = [];
   const matches = [];
+
+  const transmissions = [];
+
+  const ignoredRadios =
+    new Set();
+
   const errors = [];
-  const ignoredRadios = [];
 
-  for (const url of links) {
+  const transmissionKeys =
+    new Set();
 
+  for (
+    const url
+    of links
+  ) {
     try {
-
-      const result =
+      const page =
         await collectMatchPage(
           url
         );
 
-      matches.push({
-        title:
-          result.title,
+      if (!page.ok) {
+        errors.push({
+          url,
 
+          error:
+            page.error,
+        });
+
+        continue;
+      }
+
+      matches.push({
         home_team:
-          result.home_team,
+          page.home_team,
 
         away_team:
-          result.away_team,
+          page.away_team,
 
         source_url:
-          result.source_url,
+          page.source_url,
 
-        radios:
-          result.transmissions.length,
+        radios_found:
+          page.radios_found,
       });
 
-      transmissions.push(
-        ...result.transmissions
-      );
+      for (
+        const radio
+        of page.radios
+      ) {
+        if (
+          !radio.radio_id
+        ) {
+          if (
+            radio.radio_name
+          ) {
+            ignoredRadios.add(
+              radio.radio_name
+            );
+          }
 
-      ignoredRadios.push(
-        ...result.ignored.map(
-          (radio) => ({
-            ...radio,
-            match:
-              result.title,
+          continue;
+        }
 
-            source_url:
-              result.source_url,
-          })
-        )
-      );
+        const key =
+          [
+            radio.radio_id,
+            normalize(
+              page.home_team
+            ),
+            normalize(
+              page.away_team
+            ),
+          ].join("|");
 
-      // Pequena pausa entre páginas.
-      // Evita fazer várias requisições simultâneas.
-
-      await new Promise(
-        (resolve) =>
-          setTimeout(
-            resolve,
-            150
+        if (
+          transmissionKeys.has(
+            key
           )
-      );
+        ) {
+          continue;
+        }
+
+        transmissionKeys.add(
+          key
+        );
+
+        transmissions.push({
+          radio_id:
+            radio.radio_id,
+
+          home_team:
+            page.home_team,
+
+          away_team:
+            page.away_team,
+
+          source:
+            "OuviRádios",
+
+          source_url:
+            page.source_url,
+
+          priority:
+            1,
+        });
+      }
 
     } catch (error) {
-
       errors.push({
         url,
 
@@ -927,113 +1134,104 @@ export async function collectTransmissions(
           String(error),
       });
     }
-  }
 
-  // Remove duplicações.
+    /*
+     * Pequena pausa entre páginas.
+     * Não fazemos disparos simultâneos.
+     */
 
-  const unique = [];
-
-  const seen =
-    new Set();
-
-  for (
-    const transmission
-    of transmissions
-  ) {
-
-    const key =
-      [
-        transmission.radio_id,
-        normalize(
-          transmission.home_team
-        ),
-        normalize(
-          transmission.away_team
-        ),
-      ].join("|");
-
-    if (
-      seen.has(key)
-    ) {
-      continue;
-    }
-
-    seen.add(key);
-
-    unique.push(
-      transmission
-    );
+    await sleep(200);
   }
 
   return {
     ok: true,
 
     source:
-      "RadiosNet",
+      "OuviRádios",
 
     source_url:
       football.source_url,
 
     match_pages_found:
-      football.matches_found,
+      football.match_pages_found,
 
     match_pages_checked:
       links.length,
 
     matches,
 
-    transmissions:
-      unique,
+    transmissions,
 
     transmissions_found:
-      unique.length,
+      transmissions.length,
 
     ignored_radios:
-      ignoredRadios,
+      [
+        ...ignoredRadios,
+      ],
 
     errors,
   };
 }
 
 
-// ========================================================
-// TESTE DE UMA URL ESPECÍFICA
-// ========================================================
+// ======================================================
+// TESTAR UMA PÁGINA
+// ======================================================
 
 export async function testRadioCollector(
-  url
+  url = null
 ) {
-
   if (url) {
-    return await collectMatchPage(
+    return collectMatchPage(
       url
     );
   }
 
-  return await collectTransmissions({
-    maxMatches: 10,
-  });
+  const football =
+    await collectFootballPage();
+
+  const first =
+    football.match_links[0];
+
+  if (!first) {
+    return {
+      ok: true,
+
+      source:
+        "OuviRádios",
+
+      message:
+        "Nenhuma partida encontrada",
+
+      match_pages_found:
+        0,
+    };
+  }
+
+  return collectMatchPage(
+    first
+  );
 }
 
 
-// ========================================================
-// INFORMAÇÕES DO COLETOR
-// ========================================================
+// ======================================================
+// INFO
+// ======================================================
 
 export function getRadioCollectorInfo() {
-
   return {
     name:
       "RadioPlacar Radio Collector",
 
     version:
-      "1.0.0",
+      "2.0.0",
 
     source:
-      "RadiosNet",
+      "OuviRádios",
 
     source_url:
-      `${RADIOSNET_BASE}/futebol`,
+      FOOTBALL_URL,
 
     purpose:
       "Identificar rádios relacionadas a partidas de futebol",
