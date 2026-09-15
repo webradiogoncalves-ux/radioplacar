@@ -2928,3 +2928,480 @@ input:focus-visible {
       0.01ms !important;
   }
 }
+/* ======================================================
+   RPF PLACAR - HEADER
+   ====================================================== */
+
+.rpf-topbar {
+  min-height: 70px;
+  padding: 0 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 14px;
+}
+
+.rpf-brand {
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+
+  gap: 11px;
+}
+
+.rpf-brand-ball {
+  flex: 0 0 42px;
+
+  width: 42px;
+  height: 42px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 13px;
+
+  background:
+    linear-gradient(
+      145deg,
+      #2cff8b,
+      #00a95c
+    );
+
+  box-shadow:
+    0 0 25px
+    rgba(44, 255, 139, 0.22);
+
+  font-size: 22px;
+}
+
+.rpf-brand-text {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 4px;
+}
+
+.rpf-brand-text strong {
+  color: #fff;
+
+  font-size: 21px;
+  line-height: 1;
+
+  font-weight: 950;
+
+  letter-spacing: -0.7px;
+
+  white-space: nowrap;
+}
+
+.rpf-brand-text strong span {
+  color: var(--green);
+}
+
+.rpf-brand-text small {
+  color: var(--muted);
+
+  font-size: 9px;
+  line-height: 1;
+
+  font-weight: 800;
+
+  letter-spacing: 0.7px;
+
+  white-space: nowrap;
+}
+
+
+/* ======================================================
+   RPF PLACAR - NOVO CARD
+   ====================================================== */
+
+.rpf-match-card {
+  position: relative;
+
+  width: 100%;
+
+  padding: 16px;
+
+  overflow: hidden;
+
+  border-radius: 22px;
+
+  background:
+    radial-gradient(
+      circle at 50% -20%,
+      rgba(44, 255, 139, 0.10),
+      transparent 170px
+    ),
+    linear-gradient(
+      180deg,
+      #092018 0%,
+      #06140f 100%
+    );
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.08);
+
+  box-shadow:
+    0 12px 35px
+    rgba(0, 0, 0, 0.22);
+
+  cursor: pointer;
+}
+
+.rpf-match-card.match-live {
+  border-color:
+    rgba(44, 255, 139, 0.35);
+
+  box-shadow:
+    0 0 0 1px
+    rgba(44, 255, 139, 0.05),
+    0 15px 40px
+    rgba(0, 0, 0, 0.28);
+}
+
+
+/* CABEÇALHO DO CARD */
+
+.rpf-match-header {
+  position: relative;
+
+  min-height: 69px;
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.rpf-clock-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: 3px;
+
+  text-align: center;
+}
+
+.rpf-clock {
+  color: #fff;
+
+  font-size: 25px;
+  line-height: 1;
+
+  font-weight: 950;
+
+  letter-spacing: 0.3px;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+.rpf-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
+  min-height: 22px;
+
+  padding: 0 9px;
+
+  border-radius: 999px;
+
+  font-size: 9px;
+  font-weight: 950;
+
+  letter-spacing: 0.8px;
+}
+
+.rpf-status-live {
+  color: #00190c;
+
+  background: var(--green);
+}
+
+.rpf-status-scheduled {
+  color: #a8bcb2;
+
+  background:
+    rgba(255, 255, 255, 0.06);
+}
+
+.rpf-status-finished {
+  color: #8ca69a;
+
+  background:
+    rgba(255, 255, 255, 0.05);
+}
+
+.rpf-kickoff {
+  margin-top: 2px;
+
+  color: var(--muted);
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.rpf-match-header .favorite-button {
+  position: absolute;
+
+  top: 0;
+  right: 0;
+}
+
+
+/* TIMES */
+
+.rpf-teams {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  gap: 14px;
+
+  margin-top: 7px;
+}
+
+.rpf-team {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: 6px;
+
+  text-align: center;
+}
+
+.rpf-team .team-badge {
+  margin-bottom: 2px;
+}
+
+.rpf-team-code {
+  display: block;
+
+  color: #fff;
+
+  font-size: 15px;
+  line-height: 1;
+
+  font-weight: 950;
+
+  letter-spacing: 0.5px;
+}
+
+.rpf-team-name {
+  display: block;
+
+  width: 100%;
+
+  min-height: 30px;
+
+  color: #b7ccc1;
+
+  font-size: 11px;
+  line-height: 1.3;
+
+  font-weight: 700;
+
+  overflow-wrap: anywhere;
+}
+
+
+/* PLACAR */
+
+.rpf-versus {
+  min-width: 78px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: 4px;
+}
+
+.rpf-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  color: #fff;
+
+  font-size: 31px;
+  line-height: 1;
+
+  font-weight: 950;
+
+  letter-spacing: -1px;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+.rpf-score small {
+  color: #60786d;
+
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.rpf-score-pregame {
+  color: #d6e2dc;
+}
+
+.rpf-vs {
+  color: var(--muted-2);
+
+  font-size: 8px;
+
+  font-weight: 900;
+
+  letter-spacing: 1px;
+}
+
+
+/* CAMPEONATO */
+
+.rpf-match-league {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  margin-top: 14px;
+
+  padding-top: 12px;
+
+  color: var(--muted);
+
+  border-top:
+    1px solid
+    rgba(255, 255, 255, 0.06);
+
+  font-size: 10px;
+
+  font-weight: 800;
+
+  text-align: center;
+}
+
+
+/* RÁDIO */
+
+.rpf-match-footer {
+  min-height: 38px;
+
+  margin-top: 10px;
+
+  padding: 0 11px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  border-radius: 12px;
+
+  background:
+    rgba(0, 0, 0, 0.18);
+}
+
+.rpf-match-footer .radio-confirmed {
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+
+  gap: 7px;
+
+  color: var(--green);
+
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.rpf-match-footer .no-radio {
+  color: var(--muted-2);
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+
+/* CELULAR */
+
+@media (max-width: 520px) {
+  .rpf-topbar {
+    padding:
+      0
+      13px;
+  }
+
+  .rpf-brand-ball {
+    flex-basis: 38px;
+
+    width: 38px;
+    height: 38px;
+
+    font-size: 19px;
+  }
+
+  .rpf-brand-text strong {
+    font-size: 18px;
+  }
+
+  .rpf-brand-text small {
+    font-size: 7px;
+  }
+
+  .rpf-match-card {
+    padding:
+      14px
+      12px;
+  }
+
+  .rpf-clock {
+    font-size: 23px;
+  }
+
+  .rpf-teams {
+    gap: 8px;
+  }
+
+  .rpf-versus {
+    min-width: 64px;
+  }
+
+  .rpf-score {
+    gap: 6px;
+
+    font-size: 27px;
+  }
+
+  .rpf-team-code {
+    font-size: 14px;
+  }
+
+  .rpf-team-name {
+    font-size: 10px;
+  }
+}
