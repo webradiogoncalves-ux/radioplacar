@@ -13,6 +13,15 @@ import {
   getRadioStats,
 } from "./radios.js";
 
+import {
+  collectTransmissions,
+  getRadioCollectorInfo,
+} from "./radio-collector.js";
+
+import {
+  mapTransmissions,
+} from "./radio-mapper.js";
+
 const app = express();
 
 app.use(cors());
@@ -25,8 +34,6 @@ const PORT = process.env.PORT || 3001;
 // ======================================================
 
 const API_BASE = "https://sports.bzzoiro.com/api/v2";
-
-// Mantemos o mesmo nome que já está no Render.
 const API_KEY = process.env.API_FOOTBALL_KEY;
 
 const cache = new Map();
@@ -123,9 +130,7 @@ async function apiRequest(pathOrUrl) {
 
 async function getPaginated(path, maxPages = 20) {
   let next = path;
-
   const results = [];
-
   let page = 0;
 
   while (next && page < maxPages) {
@@ -141,7 +146,6 @@ async function getPaginated(path, maxPages = 20) {
     }
 
     next = data?.next || null;
-
     page++;
   }
 
@@ -155,7 +159,6 @@ async function getPaginated(path, maxPages = 20) {
 
 async function getAllMatches(date) {
   const cacheKey = `matches:${date}`;
-
   const saved = cacheGet(cacheKey);
 
   if (saved) return saved;
@@ -181,7 +184,6 @@ async function getAllMatches(date) {
 
 async function getLiveMatches() {
   const cacheKey = "live";
-
   const saved = cacheGet(cacheKey);
 
   if (saved) return saved;
@@ -205,7 +207,6 @@ async function getLiveMatches() {
 
 async function getAllLeagues() {
   const cacheKey = "leagues";
-
   const saved = cacheGet(cacheKey);
 
   if (saved) return saved;
@@ -224,6 +225,106 @@ async function getAllLeagues() {
 
 
 // ======================================================
+// MAPEAMENTO AUTOMÁTICO DAS RÁDIOS
+// ======================================================
+
+let radioMapperRunning = false;
+let lastRadioMapperRun = null;
+let lastRadioMapperResult = null;
+
+async function runRadioMapper(
+  date = brasilDate(),
+  options = {}
+) {
+  if (radioMapperRunning) {
+    return {
+      ok: true,
+      running: true,
+      message:
+        "Mapeador de rádios já está em execução",
+      last_run:
+        lastRadioMapperRun,
+      last_result:
+        lastRadioMapperResult,
+    };
+  }
+
+  radioMapperRunning = true;
+
+  try {
+    const matches =
+      await getAllMatches(date);
+
+    const collected =
+      await collectTransmissions({
+        maxMatches:
+          Number.isInteger(
+            options.maxMatches
+          )
+            ? options.maxMatches
+            : 40,
+      });
+
+    const mapped =
+      mapTransmissions(
+        matches,
+        collected.transmissions || [],
+        {
+          clearExisting:
+            options.clearExisting === true,
+        }
+      );
+
+    lastRadioMapperRun =
+      new Date().toISOString();
+
+    lastRadioMapperResult = {
+      ok: true,
+      date,
+
+      bsd_matches:
+        matches.length,
+
+      source:
+        collected.source,
+
+      source_url:
+        collected.source_url,
+
+      match_pages_found:
+        collected.match_pages_found,
+
+      match_pages_checked:
+        collected.match_pages_checked,
+
+      transmissions_found:
+        collected.transmissions_found,
+
+      mapped:
+        mapped.mapped,
+
+      not_mapped:
+        mapped.not_mapped,
+
+      ignored_radios:
+        collected.ignored_radios || [],
+
+      collector_errors:
+        collected.errors || [],
+
+      results:
+        mapped.results,
+    };
+
+    return lastRadioMapperResult;
+
+  } finally {
+    radioMapperRunning = false;
+  }
+}
+
+
+// ======================================================
 // HEALTH
 // ======================================================
 
@@ -231,8 +332,11 @@ app.get("/", (_req, res) => {
   res.json({
     ok: true,
     app: "radioplacar-api",
-    provider: "BSD - Bzzoiro Sports Data",
+    provider:
+      "BSD - Bzzoiro Sports Data",
     radioSystem: true,
+    radioCollector: true,
+    radioMapper: true,
   });
 });
 
@@ -241,7 +345,8 @@ app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
 
-    app: "radioplacar-api",
+    app:
+      "radioplacar-api",
 
     provider:
       "BSD - Bzzoiro Sports Data",
@@ -249,7 +354,22 @@ app.get("/api/health", (_req, res) => {
     apiConfigured:
       Boolean(API_KEY),
 
-    radioSystem: true,
+    radioSystem:
+      true,
+
+    radioCollector:
+      getRadioCollectorInfo(),
+
+    radioMapper: {
+      running:
+        radioMapperRunning,
+
+      last_run:
+        lastRadioMapperRun,
+
+      last_result:
+        lastRadioMapperResult,
+    },
 
     radios:
       getRadioStats(),
@@ -274,8 +394,10 @@ app.get("/api/live", async (_req, res) => {
 
     res.json({
       ok: true,
-      count: matches.length,
-      response: matches,
+      count:
+        matches.length,
+      response:
+        matches,
     });
 
   } catch (error) {
@@ -288,10 +410,8 @@ app.get("/api/live", async (_req, res) => {
       .status(error.status || 500)
       .json({
         ok: false,
-
         error:
           error.message,
-
         details:
           error.data || null,
       });
@@ -314,12 +434,9 @@ app.get("/api/today", async (req, res) => {
 
     res.json({
       ok: true,
-
       date,
-
       count:
         matches.length,
-
       response:
         matches,
     });
@@ -334,10 +451,8 @@ app.get("/api/today", async (req, res) => {
       .status(error.status || 500)
       .json({
         ok: false,
-
         error:
           error.message,
-
         details:
           error.data || null,
       });
@@ -347,9 +462,6 @@ app.get("/api/today", async (req, res) => {
 
 // ======================================================
 // PARTIDAS POR DATA
-//
-// exemplo:
-// /api/matches?date=2026-09-14
 // ======================================================
 
 app.get("/api/matches", async (req, res) => {
@@ -363,12 +475,9 @@ app.get("/api/matches", async (req, res) => {
 
     res.json({
       ok: true,
-
       date,
-
       count:
         matches.length,
-
       response:
         matches,
     });
@@ -383,10 +492,8 @@ app.get("/api/matches", async (req, res) => {
       .status(error.status || 500)
       .json({
         ok: false,
-
         error:
           error.message,
-
         details:
           error.data || null,
       });
@@ -401,7 +508,6 @@ app.get("/api/matches", async (req, res) => {
 app.get(
   "/api/fixture/:id",
   async (req, res) => {
-
     try {
       const id =
         encodeURIComponent(
@@ -427,8 +533,6 @@ app.get(
         );
       }
 
-      // rádios brasileiras
-      // confirmadas para esta partida
       const radios =
         getRadiosForMatch(
           req.params.id
@@ -436,10 +540,8 @@ app.get(
 
       res.json({
         ok: true,
-
         response:
           fixture,
-
         radios,
       });
 
@@ -453,10 +555,8 @@ app.get(
         .status(error.status || 500)
         .json({
           ok: false,
-
           error:
             error.message,
-
           details:
             error.data || null,
         });
@@ -472,17 +572,14 @@ app.get(
 app.get(
   "/api/leagues",
   async (_req, res) => {
-
     try {
       const leagues =
         await getAllLeagues();
 
       res.json({
         ok: true,
-
         count:
           leagues.length,
-
         response:
           leagues,
       });
@@ -497,10 +594,8 @@ app.get(
         .status(error.status || 500)
         .json({
           ok: false,
-
           error:
             error.message,
-
           details:
             error.data || null,
         });
@@ -510,22 +605,19 @@ app.get(
 
 
 // ======================================================
-// RÁDIOS BRASILEIRAS CADASTRADAS
+// RÁDIOS CADASTRADAS
 // ======================================================
 
 app.get(
   "/api/radios",
   (_req, res) => {
-
     const radios =
       getRadios();
 
     res.json({
       ok: true,
-
       count:
         radios.length,
-
       response:
         radios,
     });
@@ -540,7 +632,6 @@ app.get(
 app.get(
   "/api/radios/:id",
   (req, res) => {
-
     const radio =
       getRadio(
         req.params.id
@@ -558,7 +649,8 @@ app.get(
 
     res.json({
       ok: true,
-      response: radio,
+      response:
+        radio,
     });
   }
 );
@@ -566,15 +658,11 @@ app.get(
 
 // ======================================================
 // RÁDIOS DE UMA PARTIDA
-//
-// exemplo:
-// /api/fixture/7259/radios
 // ======================================================
 
 app.get(
   "/api/fixture/:id/radios",
   (req, res) => {
-
     const radios =
       getRadiosForMatch(
         req.params.id
@@ -599,19 +687,12 @@ app.get(
 
 
 // ======================================================
-// VINCULAR RÁDIO A UMA PARTIDA
-//
-// Isso será usado pelo nosso
-// mapeador automático mais adiante.
-//
-// POST
-// /api/fixture/7259/radios
+// VINCULAR RÁDIO MANUALMENTE
 // ======================================================
 
 app.post(
   "/api/fixture/:id/radios",
   (req, res) => {
-
     try {
       const {
         radio_id,
@@ -656,11 +737,11 @@ app.post(
 
       res.json({
         ok: true,
-        response: result,
+        response:
+          result,
       });
 
     } catch (error) {
-
       res
         .status(400)
         .json({
@@ -674,13 +755,12 @@ app.post(
 
 
 // ======================================================
-// DESVINCULAR RÁDIO DA PARTIDA
+// DESVINCULAR UMA RÁDIO
 // ======================================================
 
 app.delete(
   "/api/fixture/:matchId/radios/:radioId",
   (req, res) => {
-
     const removed =
       detachRadioFromMatch(
         req.params.matchId,
@@ -696,13 +776,12 @@ app.delete(
 
 
 // ======================================================
-// LIMPAR TODAS AS RÁDIOS DE UMA PARTIDA
+// LIMPAR RÁDIOS DE UMA PARTIDA
 // ======================================================
 
 app.delete(
   "/api/fixture/:id/radios",
   (req, res) => {
-
     const removed =
       clearMatchRadios(
         req.params.id
@@ -723,7 +802,6 @@ app.delete(
 app.get(
   "/api/radio-stats",
   (_req, res) => {
-
     res.json({
       ok: true,
       response:
@@ -734,20 +812,155 @@ app.get(
 
 
 // ======================================================
+// INFORMAÇÕES DO COLETOR
+// ======================================================
+
+app.get(
+  "/api/radio-collector",
+  (_req, res) => {
+    res.json({
+      ok: true,
+      response:
+        getRadioCollectorInfo(),
+    });
+  }
+);
+
+
+// ======================================================
+// EXECUTAR MAPEAMENTO AUTOMÁTICO
+//
+// POST /api/radio-mapper/run
+//
+// Também aceita:
+//
+// ?date=2026-09-15
+// ?max=40
+// ======================================================
+
+app.post(
+  "/api/radio-mapper/run",
+  async (req, res) => {
+    try {
+      const date =
+        req.query.date ||
+        brasilDate();
+
+      const maxRaw =
+        Number(
+          req.query.max || 40
+        );
+
+      const maxMatches =
+        Number.isFinite(maxRaw)
+          ? Math.max(
+              1,
+              Math.min(
+                Math.trunc(maxRaw),
+                100
+              )
+            )
+          : 40;
+
+      const result =
+        await runRadioMapper(
+          date,
+          {
+            maxMatches,
+            clearExisting: true,
+          }
+        );
+
+      res.json(result);
+
+    } catch (error) {
+      console.error(
+        "ERRO /api/radio-mapper/run:",
+        error
+      );
+
+      res
+        .status(error.status || 500)
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+
+// ======================================================
+// STATUS DO MAPEADOR
+// ======================================================
+
+app.get(
+  "/api/radio-mapper/status",
+  (_req, res) => {
+    res.json({
+      ok: true,
+
+      running:
+        radioMapperRunning,
+
+      last_run:
+        lastRadioMapperRun,
+
+      last_result:
+        lastRadioMapperResult,
+    });
+  }
+);
+
+
+// ======================================================
+// MAPEAMENTO AUTOMÁTICO EM SEGUNDO PLANO
+// ======================================================
+
+async function backgroundRadioMapper() {
+  try {
+    const result =
+      await runRadioMapper(
+        brasilDate(),
+        {
+          maxMatches: 40,
+          clearExisting: true,
+        }
+      );
+
+    console.log(
+      `Mapeador de rádios: ${
+        result.mapped ?? 0
+      } vínculos confirmados`
+    );
+
+  } catch (error) {
+    console.error(
+      "Mapeador de rádios falhou:",
+      error?.message || error
+    );
+  }
+}
+
+
+// ======================================================
 // CACHE
 // ======================================================
 
 app.get(
   "/api/cache",
   (_req, res) => {
-
     const items = [];
 
     for (
       const [key, value]
       of cache.entries()
     ) {
-
       items.push({
         key,
 
@@ -764,10 +977,8 @@ app.get(
 
     res.json({
       ok: true,
-
       count:
         items.length,
-
       response:
         items,
     });
@@ -808,4 +1019,18 @@ app.listen(PORT, () => {
   console.log(
     `Rádios cadastradas: ${getRadios().length}`
   );
+
+  // Primeira tentativa 5 segundos
+  // depois do servidor iniciar.
+
+  setTimeout(() => {
+    backgroundRadioMapper();
+  }, 5000);
+
+  // Atualização automática
+  // a cada 5 minutos.
+
+  setInterval(() => {
+    backgroundRadioMapper();
+  }, 5 * 60 * 1000);
 });
