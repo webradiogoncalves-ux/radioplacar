@@ -758,10 +758,83 @@ function HomeScreen({
 }) {
   const liveMatches = matches.filter(isLive);
 
-  const highlights =
-    liveMatches.length > 0
-      ? [...liveMatches, ...matches.filter((m) => !isLive(m))].slice(0, 8)
-      : matches.slice(0, 8);
+  const interiorWords = [
+    "gaucho",
+    "gauchao",
+    "carioca",
+    "paulista",
+    "mineiro",
+    "paranaense",
+    "catarinense",
+    "baiano",
+    "pernambucano",
+    "cearense",
+    "goiano",
+    "paraense",
+    "amazonense",
+    "alagoano",
+    "sergipano",
+    "potiguar",
+    "capixaba",
+    "paraibano",
+    "maranhense",
+    "piauiense",
+    "acreano",
+    "rondoniense",
+    "roraimense",
+    "amapaense",
+    "serie c",
+    "serie d",
+    "a2",
+    "a3",
+    "b1",
+    "b2",
+    "divisao de acesso",
+  ];
+
+  const isInteriorMatch = (match) => {
+    const league = normalizeText(
+      getLeagueName(match)
+    ).toLowerCase();
+
+    return interiorWords.some((word) =>
+      league.includes(word)
+    );
+  };
+
+  const interiorMatches = matches.filter(isInteriorMatch);
+
+  const scheduledInterior = interiorMatches.filter(
+    (match) => !isLive(match) && !isFinished(match)
+  );
+
+  /*
+   * O destaque principal dá prioridade ao futebol
+   * estadual/interior quando houver partida relevante
+   * no dia. Depois entram jogos ao vivo e demais jogos.
+   */
+  const heroMatch =
+    interiorMatches.find(isLive) ||
+    scheduledInterior[0] ||
+    liveMatches[0] ||
+    matches[0] ||
+    null;
+
+  const highlights = [
+    ...(heroMatch ? [heroMatch] : []),
+    ...liveMatches,
+    ...scheduledInterior,
+    ...matches,
+  ]
+    .filter(
+      (match, index, array) =>
+        array.findIndex(
+          (item) =>
+            String(getMatchId(item)) ===
+            String(getMatchId(match))
+        ) === index
+    )
+    .slice(0, 8);
 
   const groups = useMemo(() => {
     const map = new Map();
@@ -780,26 +853,83 @@ function HomeScreen({
   }, [matches]);
 
   return (
-    <main className="screen home-screen">
-      <section className="home-hero">
-        <div>
+    <main className="screen home-screen rpf-home">
+
+      {/* CAPA DO DIA */}
+
+      <section className="rpf-home-cover">
+        <div className="rpf-cover-copy">
           <span className="hero-kicker">
-            ⚽ FUTEBOL HOJE
+            ⚽ RPF PLACAR • FUTEBOL HOJE
           </span>
 
           <h1>O futebol do dia está aqui.</h1>
 
           <p>
-            Placares, jogos, campeonatos e as rádios
-            que realmente estão transmitindo.
+            Placar, campeonatos e rádios confirmadas
+            em um só lugar.
           </p>
-        </div>
 
-        <div className="hero-stat">
-          <strong>{matches.length}</strong>
-          <span>PARTIDAS</span>
+          <div className="rpf-cover-numbers">
+            <div>
+              <strong>{matches.length}</strong>
+              <span>PARTIDAS</span>
+            </div>
+
+            <div>
+              <strong>{liveMatches.length}</strong>
+              <span>AO VIVO</span>
+            </div>
+
+            <div>
+              <strong>{interiorMatches.length}</strong>
+              <span>INTERIOR</span>
+            </div>
+          </div>
         </div>
       </section>
+
+
+      {/* DESTAQUE PRINCIPAL */}
+
+      {heroMatch && (
+        <section className="home-block rpf-main-highlight">
+          <div className="section-heading">
+            <div>
+              <span
+                className={`section-kicker ${
+                  isLive(heroMatch)
+                    ? "live-kicker"
+                    : ""
+                }`}
+              >
+                {isLive(heroMatch)
+                  ? "🟢 AO VIVO"
+                  : isInteriorMatch(heroMatch)
+                  ? "🔴 PRÉ-JOGO • RPF INTERIOR"
+                  : "⭐ DESTAQUE DO DIA"}
+              </span>
+
+              <h2>
+                {getHomeName(heroMatch)} x{" "}
+                {getAwayName(heroMatch)}
+              </h2>
+            </div>
+
+            <Star size={21} />
+          </div>
+
+          <MatchCard
+            match={heroMatch}
+            favorites={favorites}
+            onToggleFavorite={onToggleFavorite}
+            onOpen={onOpenMatch}
+          />
+        </section>
+      )}
+
+
+      {/* DESTAQUES DO DIA */}
 
       <section className="home-block">
         <div className="section-heading">
@@ -835,6 +965,46 @@ function HomeScreen({
         )}
       </section>
 
+
+      {/* RPF INTERIOR */}
+
+      {interiorMatches.length > 0 && (
+        <section className="home-block rpf-interior-block">
+          <div className="section-heading">
+            <div>
+              <span className="section-kicker">
+                🌾 FUTEBOL DE VERDADE
+              </span>
+
+              <h2>RPF Interior</h2>
+            </div>
+
+            <Radio size={21} />
+          </div>
+
+          <p className="rpf-section-description">
+            Estaduais, divisões de acesso, Série C,
+            Série D e o futebol que também merece
+            destaque.
+          </p>
+
+          <div className="rpf-interior-scroll">
+            {interiorMatches
+              .slice(0, 6)
+              .map((match, index) => (
+                <HighlightCard
+                  key={`interior-${getMatchId(match)}-${index}`}
+                  match={match}
+                  onOpen={onOpenMatch}
+                />
+              ))}
+          </div>
+        </section>
+      )}
+
+
+      {/* POR CAMPEONATO */}
+
       <section className="home-block">
         <div className="section-heading">
           <div>
@@ -848,26 +1018,33 @@ function HomeScreen({
           <CalendarDays size={21} />
         </div>
 
-        <div className="home-competitions">
-          {groups.map(([league, leagueMatches]) => {
-            const example = leagueMatches[0];
+        {groups.length === 0 ? (
+          <div className="empty-card">
+            Nenhum campeonato encontrado.
+          </div>
+        ) : (
+          <div className="rpf-league-grid">
+            {groups.map(([league, leagueMatches]) => {
+              const example = leagueMatches[0];
 
-            return (
-              <button
-                key={league}
-                className="home-competition-card"
-                onClick={() =>
-                  onOpenCompetition({
-                    id: getLeagueId(example),
-                    name: league,
-                    example,
-                  })
-                }
-              >
-                <div className="home-competition-left">
-                  <LeagueBadge match={example} />
+              return (
+                <button
+                  type="button"
+                  key={league}
+                  className="rpf-league-card"
+                  onClick={() =>
+                    onOpenCompetition({
+                      id: getLeagueId(example),
+                      name: league,
+                      example,
+                    })
+                  }
+                >
+                  <div className="rpf-league-logo">
+                    <LeagueBadge match={example} />
+                  </div>
 
-                  <div>
+                  <div className="rpf-league-info">
                     <strong>{league}</strong>
 
                     <span>
@@ -877,44 +1054,58 @@ function HomeScreen({
                         : "partidas"}
                     </span>
                   </div>
-                </div>
 
-                <div className="home-competition-preview">
-                  {leagueMatches.slice(0, 3).map((match, index) => (
-                    <div
-                      key={`${getMatchId(match)}-${index}`}
-                      className="mini-fixture"
-                    >
-                      <span>
-                        {abbreviation(getHomeName(match))}
-                      </span>
+                  <div className="rpf-league-next">
+                    {leagueMatches[0] && (
+                      <>
+                        <span>
+                          {abbreviation(
+                            getHomeName(
+                              leagueMatches[0]
+                            )
+                          )}
+                        </span>
 
-                      <strong>
-                        {hasScore(match)
-                          ? `${getHomeScore(match)} × ${getAwayScore(match)}`
-                          : formatTime(match)}
-                      </strong>
+                        <strong>
+                          {hasScore(leagueMatches[0])
+                            ? `${getHomeScore(
+                                leagueMatches[0]
+                              )} - ${getAwayScore(
+                                leagueMatches[0]
+                              )}`
+                            : formatTime(
+                                leagueMatches[0]
+                              )}
+                        </strong>
 
-                      <span>
-                        {abbreviation(getAwayName(match))}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                        <span>
+                          {abbreviation(
+                            getAwayName(
+                              leagueMatches[0]
+                            )
+                          )}
+                        </span>
+                      </>
+                    )}
+                  </div>
 
-                <ChevronRight size={19} />
-              </button>
-            );
-          })}
-        </div>
+                  <ChevronRight size={18} />
+                </button>
+              );
+            })}
+          </div>
+        )}
       </section>
 
+
+      {/* AO VIVO */}
+
       {liveMatches.length > 0 && (
-        <section className="home-block">
+        <section className="home-block rpf-live-block">
           <div className="section-heading">
             <div>
               <span className="section-kicker live-kicker">
-                AO VIVO
+                🟢 AO VIVO
               </span>
 
               <h2>Jogando agora</h2>
@@ -923,19 +1114,22 @@ function HomeScreen({
             <Wifi size={21} />
           </div>
 
-          <div className="competition-matches">
-            {liveMatches.slice(0, 5).map((match, index) => (
-              <MatchCard
-                key={`live-${getMatchId(match)}-${index}`}
-                match={match}
-                favorites={favorites}
-                onToggleFavorite={onToggleFavorite}
-                onOpen={onOpenMatch}
-              />
-            ))}
+          <div className="rpf-live-list">
+            {liveMatches
+              .slice(0, 5)
+              .map((match, index) => (
+                <MatchCard
+                  key={`live-${getMatchId(match)}-${index}`}
+                  match={match}
+                  favorites={favorites}
+                  onToggleFavorite={onToggleFavorite}
+                  onOpen={onOpenMatch}
+                />
+              ))}
           </div>
         </section>
       )}
+
     </main>
   );
 }
