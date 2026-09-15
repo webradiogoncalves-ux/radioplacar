@@ -371,7 +371,146 @@ async function getAllLeagues() {
     30 * 60 * 1000
   );
 }
+// ======================================================
+// TEMPORADAS DOS CAMPEONATOS BSD
+// ======================================================
 
+async function getLeagueSeasons(leagueId) {
+  const safeLeagueId = String(leagueId || "").trim();
+
+  if (!safeLeagueId) {
+    return [];
+  }
+
+  const cacheKey =
+    `league-seasons:${safeLeagueId}`;
+
+  const saved =
+    cacheGet(cacheKey);
+
+  if (saved) {
+    return saved;
+  }
+
+  const seasons =
+    await getPaginated(
+      `/leagues/${encodeURIComponent(
+        safeLeagueId
+      )}/seasons/?limit=200`,
+      10
+    );
+
+  return cacheSet(
+    cacheKey,
+    seasons,
+    30 * 60 * 1000
+  );
+}
+
+function seasonValue(season, ...keys) {
+  for (const key of keys) {
+    const value = season?.[key];
+
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+    ) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function findCurrentSeason(seasons) {
+  if (!Array.isArray(seasons)) {
+    return null;
+  }
+
+  const current =
+    seasons.find((season) => {
+      const value =
+        seasonValue(
+          season,
+          "current",
+          "is_current",
+          "atual",
+          "isCurrent"
+        );
+
+      return (
+        value === true ||
+        value === 1 ||
+        value === "1" ||
+        String(value).toLowerCase() === "true"
+      );
+    });
+
+  if (current) {
+    return current;
+  }
+
+  /*
+   * Se a BSD não marcar "current",
+   * usamos somente os dados reais recebidos:
+   * ordenamos pelo ano/id e pegamos o mais recente.
+   */
+  return (
+    [...seasons]
+      .sort((a, b) => {
+        const yearA =
+          Number(
+            seasonValue(
+              a,
+              "year",
+              "ano"
+            )
+          ) || 0;
+
+        const yearB =
+          Number(
+            seasonValue(
+              b,
+              "year",
+              "ano"
+            )
+          ) || 0;
+
+        if (yearA !== yearB) {
+          return yearB - yearA;
+        }
+
+        const idA =
+          Number(
+            seasonValue(
+              a,
+              "id",
+              "season_id"
+            )
+          ) || 0;
+
+        const idB =
+          Number(
+            seasonValue(
+              b,
+              "id",
+              "season_id"
+            )
+          ) || 0;
+
+        return idB - idA;
+      })[0] || null
+  );
+}
+
+function getSeasonId(season) {
+  return seasonValue(
+    season,
+    "id",
+    "season_id"
+  );
+}
 // ======================================================
 // MAPEAMENTO AUTOMÁTICO DAS RÁDIOS
 // ======================================================
@@ -635,7 +774,122 @@ app.get("/", (_req, res) => {
       true,
   });
 });
+// ======================================================
+// CAMPEONATOS + TEMPORADA ATUAL
+// ======================================================
 
+app.get(
+  "/api/competitions",
+  async (_req, res) => {
+    try {
+      const leagues =
+        await getAllLeagues();
+
+      const competitions = [];
+
+      for (const league of leagues) {
+        const leagueId =
+          league?.id ??
+          league?.league_id ??
+          null;
+
+        if (!leagueId) {
+          continue;
+        }
+
+        try {
+          const seasons =
+            await getLeagueSeasons(
+              leagueId
+            );
+
+          const currentSeason =
+            findCurrentSeason(
+              seasons
+            );
+
+          competitions.push({
+            ...league,
+
+            league_id:
+              leagueId,
+
+            season_id:
+              currentSeason
+                ? getSeasonId(
+                    currentSeason
+                  )
+                : null,
+
+            season:
+              currentSeason,
+
+            league_logo:
+              getLeagueLogo(
+                leagueId
+              ),
+          });
+        } catch (error) {
+          console.error(
+            `Erro temporadas liga ${leagueId}:`,
+            error?.message
+          );
+
+          /*
+           * O campeonato continua na lista,
+           * mas sem inventar season_id.
+           */
+          competitions.push({
+            ...league,
+
+            league_id:
+              leagueId,
+
+            season_id:
+              null,
+
+            season:
+              null,
+
+            league_logo:
+              getLeagueLogo(
+                leagueId
+              ),
+          });
+        }
+      }
+
+      res.json({
+        ok: true,
+
+        count:
+          competitions.length,
+
+        response:
+          competitions,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/competitions:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
 // ======================================================
 // HEALTH
 // ======================================================
