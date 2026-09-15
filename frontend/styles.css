@@ -4880,3 +4880,429 @@ input:focus-visible {
     padding: 4px 7px;
   }
 }
+/* ======================================================
+   RPF PLACAR - CLASSIFICAÇÃO REAL
+   CORREÇÃO FINAL
+   ====================================================== */
+
+.standings-real {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.standings-title {
+  width: 100%;
+  margin-bottom: 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  padding: 16px 18px;
+
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(44, 255, 139, 0.10),
+      rgba(255, 255, 255, 0.025)
+    );
+
+  border: 1px solid rgba(44, 255, 139, 0.16);
+}
+
+.standings-title > div {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 4px;
+}
+
+.standings-title span {
+  color: var(--green);
+
+  font-size: 10px;
+  line-height: 1;
+
+  font-weight: 950;
+  letter-spacing: 0.8px;
+
+  text-transform: uppercase;
+}
+
+.standings-title strong {
+  display: block;
+
+  color: var(--white);
+
+  font-size: 18px;
+  line-height: 1.2;
+
+  font-weight: 950;
+}
+
+.standings-title svg {
+  flex: 0 0 auto;
+  color: var(--green);
+}
+
+/* rolagem horizontal somente quando realmente necessária */
+
+.standings-scroll {
+  width: 100%;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  border-radius: 18px;
+
+  scrollbar-width: thin;
+}
+
+/* tabela */
+
+.standings-real .standings-table {
+  width: 100%;
+
+  min-width: 720px;
+
+  overflow: hidden;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(11, 36, 27, 0.96),
+      rgba(5, 20, 15, 0.98)
+    );
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/*
+   8 COLUNAS:
+   POS | TIME | PTS | J | V | E | D | SG
+*/
+
+.standings-real .standings-row {
+  width: 100%;
+
+  min-width: 720px;
+  min-height: 62px;
+
+  display: grid;
+
+  grid-template-columns:
+    46px
+    minmax(240px, 1fr)
+    55px
+    45px
+    45px
+    45px
+    45px
+    55px;
+
+  align-items: center;
+
+  gap: 0;
+
+  padding: 8px 12px;
+
+  border-bottom:
+    1px solid rgba(255, 255, 255, 0.055);
+
+  font-size: 12px;
+}
+
+.standings-real .standings-row:last-child {
+  border-bottom: 0;
+}
+
+/* cabeçalho */
+
+.standings-real .standings-head {
+  min-height: 43px;
+
+  padding-top: 8px;
+  padding-bottom: 8px;
+
+  color: var(--muted);
+
+  background:
+    rgba(255, 255, 255, 0.035);
+
+  font-size: 9px;
+
+  font-weight: 950;
+
+  letter-spacing: 0.45px;
+
+  text-transform: uppercase;
+}
+
+.standings-real .standings-head > div:not(:nth-child(2)) {
+  text-align: center;
+}
+
+/* posição */
+
+.standing-position {
+  text-align: center;
+
+  color: #d7e9df;
+
+  font-size: 12px;
+
+  font-weight: 950;
+}
+
+/* time */
+
+.standing-team {
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+
+  gap: 11px;
+
+  padding-right: 12px;
+}
+
+.standing-team .team-badge,
+.standing-team .team-logo,
+.standing-team img {
+  flex: 0 0 auto;
+}
+
+.standing-team-name {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 3px;
+
+  overflow: hidden;
+}
+
+.standing-team-name strong {
+  display: block;
+
+  overflow: hidden;
+
+  color: var(--white);
+
+  font-size: 12px;
+  line-height: 1.2;
+
+  font-weight: 900;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.standing-team-name small {
+  display: block;
+
+  overflow: hidden;
+
+  color: var(--muted);
+
+  font-size: 9px;
+  line-height: 1.2;
+
+  font-weight: 750;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* números */
+
+.standings-real .standings-row > div:nth-child(n + 3) {
+  text-align: center;
+
+  font-variant-numeric: tabular-nums;
+
+  font-weight: 800;
+}
+
+.standing-points {
+  color: var(--green) !important;
+
+  font-size: 13px;
+
+  font-weight: 950 !important;
+}
+
+/* zonas */
+
+.standings-real .standing-zone-libertadores {
+  box-shadow:
+    inset 4px 0 0 #2cff8b;
+}
+
+.standings-real .standing-zone-prelibertadores {
+  box-shadow:
+    inset 4px 0 0 #25b8ff;
+}
+
+.standings-real .standing-zone-sulamericana {
+  box-shadow:
+    inset 4px 0 0 #ffc857;
+}
+
+.standings-real .standing-zone-rebaixamento {
+  box-shadow:
+    inset 4px 0 0 #ff4d67;
+}
+
+/* legenda */
+
+.standings-legend {
+  margin-top: 14px;
+
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+
+  gap: 8px 16px;
+
+  padding: 12px 14px;
+
+  border-radius: 14px;
+
+  background: rgba(255, 255, 255, 0.025);
+
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.standings-legend > span {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 7px;
+
+  color: var(--muted);
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.standings-legend i {
+  width: 9px;
+  height: 9px;
+
+  display: block;
+
+  flex: 0 0 9px;
+
+  border-radius: 50%;
+}
+
+.standings-legend i.standing-zone-libertadores {
+  background: #2cff8b;
+}
+
+.standings-legend i.standing-zone-prelibertadores {
+  background: #25b8ff;
+}
+
+.standings-legend i.standing-zone-sulamericana {
+  background: #ffc857;
+}
+
+.standings-legend i.standing-zone-rebaixamento {
+  background: #ff4d67;
+}
+
+/* fonte */
+
+.standings-source {
+  margin-top: 10px;
+
+  color: var(--muted-2);
+
+  font-size: 9px;
+
+  text-align: right;
+}
+
+/* carregando / indisponível */
+
+.standings-loading,
+.standings-empty {
+  min-height: 180px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  padding: 28px;
+
+  border-radius: 18px;
+
+  color: var(--muted);
+
+  background: var(--surface);
+
+  border:
+    1px dashed rgba(255, 255, 255, 0.10);
+
+  text-align: center;
+}
+
+.standings-loading svg,
+.standings-empty svg {
+  color: var(--green);
+}
+
+.standings-loading strong,
+.standings-empty strong {
+  color: var(--white);
+
+  font-size: 13px;
+  font-weight: 950;
+}
+
+/* celular */
+
+@media (max-width: 760px) {
+  .standings-title {
+    padding: 14px;
+  }
+
+  .standings-title strong {
+    font-size: 16px;
+  }
+
+  .standings-real .standings-table,
+  .standings-real .standings-row {
+    min-width: 650px;
+  }
+
+  .standings-real .standings-row {
+    grid-template-columns:
+      40px
+      minmax(205px, 1fr)
+      48px
+      42px
+      42px
+      42px
+      42px
+      48px;
+
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
