@@ -1857,55 +1857,470 @@ function CompetitionScreen({
 // ======================================================
 // CLASSIFICAÇÃO
 // ======================================================
-//
-// IMPORTANTE:
-// NÃO colocamos tabela fictícia.
-// Aqui já fica o visual preparado.
-// Quando ligarmos o endpoint real de classificação
-// da BSD, os clubes entram com escudo ou 3 letras.
-// ======================================================
-
 function StandingsPlaceholder({ competition }) {
-  return (
-    <section className="standings-section">
-      <div className="standings-header">
-        <div>
-          <span className="section-kicker">
-            TABELA
-          </span>
+  const [standings, setStandings] = useState([]);
+  const [season, setSeason] = useState(null);
+  const [zones, setZones] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-          <h2>{competition?.name}</h2>
+  const leagueId = firstValue(
+    competition?.league_id,
+    competition?.id,
+    competition?.league?.id
+  );
+
+  const seasonId = firstValue(
+    competition?.season_id,
+    competition?.season?.id
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStandings() {
+      if (!leagueId || !seasonId) {
+        setStandings([]);
+        setSeason(null);
+        setZones([]);
+        setError(
+          "Classificação indisponível para este campeonato."
+        );
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await fetch(
+          `${API_URL}/api/standings/${encodeURIComponent(
+            leagueId
+          )}?season_id=${encodeURIComponent(seasonId)}`
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Erro ${response.status} ao buscar classificação`
+          );
+        }
+
+        const data = await response.json();
+
+        /*
+         * O backend pode devolver "response".
+         * Mantemos fallbacks para respostas que venham
+         * traduzidas ou normalizadas.
+         */
+        const payload =
+          data?.response ??
+          data?.resposta ??
+          data ??
+          {};
+
+        const rows =
+          payload?.standings ??
+          payload?.classificações ??
+          payload?.classificacoes ??
+          [];
+
+        if (cancelled) return;
+
+        setStandings(
+          Array.isArray(rows) ? rows : []
+        );
+
+        setSeason(
+          payload?.season ??
+          payload?.temporada ??
+          null
+        );
+
+        setZones(
+          Array.isArray(payload?.zones)
+            ? payload.zones
+            : Array.isArray(payload?.zonas)
+            ? payload.zonas
+            : []
+        );
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error(
+          "Erro ao carregar classificação:",
+          err
+        );
+
+        setStandings([]);
+        setSeason(null);
+        setZones([]);
+        setError(
+          "Não foi possível carregar a classificação."
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadStandings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [leagueId, seasonId]);
+
+  function rowValue(row, ...keys) {
+    for (const key of keys) {
+      const value = row?.[key];
+
+      if (
+        value !== undefined &&
+        value !== null &&
+        value !== ""
+      ) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  function getStandingTeamId(row) {
+    return rowValue(
+      row,
+      "team_id",
+      "id_da_equipe",
+      "id_equipe"
+    );
+  }
+
+  function getStandingTeamName(row) {
+    return String(
+      rowValue(
+        row,
+        "team_name",
+        "nome_da_equipe",
+        "nome_do_time",
+        "nome_equipe"
+      ) || "Time"
+    );
+  }
+
+  function getStandingPosition(row) {
+    return rowValue(
+      row,
+      "position",
+      "posição",
+      "posicao"
+    );
+  }
+
+  function getStandingPlayed(row) {
+    return rowValue(
+      row,
+      "played",
+      "jogados",
+      "jogos"
+    );
+  }
+
+  function getStandingWins(row) {
+    return rowValue(
+      row,
+      "won",
+      "wins",
+      "ganhou",
+      "vitorias",
+      "vitórias"
+    );
+  }
+
+  function getStandingDraws(row) {
+    return rowValue(
+      row,
+      "drawn",
+      "draws",
+      "empatados",
+      "empatado",
+      "empates"
+    );
+  }
+
+  function getStandingLosses(row) {
+    return rowValue(
+      row,
+      "lost",
+      "losses",
+      "perdido",
+      "derrotas"
+    );
+  }
+
+  function getStandingGoalDifference(row) {
+    return rowValue(
+      row,
+      "gd",
+      "goal_difference",
+      "saldo"
+    );
+  }
+
+  function getStandingPoints(row) {
+    return rowValue(
+      row,
+      "pts",
+      "points",
+      "pontos"
+    );
+  }
+
+  function getStandingZone(row) {
+    return (
+      row?.zone ??
+      row?.zona ??
+      null
+    );
+  }
+
+  function getZoneClass(zone) {
+    const key = normalizeText(
+      firstValue(
+        zone?.key,
+        zone?.chave,
+        zone?.type,
+        zone?.tipo,
+        ""
+      )
+    ).toLowerCase();
+
+    if (
+      key === "cl" ||
+      key.includes("libertadores")
+    ) {
+      return "standing-zone-libertadores";
+    }
+
+    if (
+      key === "clq" ||
+      key.includes("qualifica")
+    ) {
+      return "standing-zone-prelibertadores";
+    }
+
+    if (
+      key === "el" ||
+      key.includes("sul-americana") ||
+      key.includes("sul americana")
+    ) {
+      return "standing-zone-sulamericana";
+    }
+
+    if (
+      key === "rel" ||
+      key.includes("rebaix")
+    ) {
+      return "standing-zone-rebaixamento";
+    }
+
+    return "";
+  }
+
+  if (loading) {
+    return (
+      <section className="standings-real">
+        <div className="standings-loading">
+          <Trophy size={24} />
+          <strong>
+            Carregando classificação...
+          </strong>
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="standings-real">
+        <div className="standings-empty">
+          <Trophy size={28} />
+
+          <strong>CLASSIFICAÇÃO</strong>
+
+          <span>{error}</span>
+        </div>
+      </section>
+    );
+  }
+
+  if (!standings.length) {
+    return (
+      <section className="standings-real">
+        <div className="standings-empty">
+          <Trophy size={28} />
+
+          <strong>
+            CLASSIFICAÇÃO INDISPONÍVEL
+          </strong>
+
+          <span>
+            A BSD não retornou tabela para esta competição.
+          </span>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="standings-real">
+      <div className="standings-title">
+        <div>
+          <span>CLASSIFICAÇÃO</span>
+
+          <strong>
+            {firstValue(
+              season?.name,
+              season?.nome,
+              getLeagueName(competition)
+            )}
+          </strong>
         </div>
 
         <Trophy size={25} />
       </div>
 
-      <div className="standings-table-head">
-        <span>#</span>
-        <span>TIME</span>
-        <span>J</span>
-        <span>V</span>
-        <span>E</span>
-        <span>D</span>
-        <span>SG</span>
-        <strong>PTS</strong>
+      <div className="standings-scroll">
+        <div className="standings-table">
+          <div className="standings-row standings-head">
+            <div>POS</div>
+            <div>TIME</div>
+            <div>PTS</div>
+            <div>J</div>
+            <div>V</div>
+            <div>E</div>
+            <div>D</div>
+            <div>SG</div>
+          </div>
+
+          {standings.map((row, index) => {
+            const teamId =
+              getStandingTeamId(row);
+
+            const teamName =
+              getStandingTeamName(row);
+
+            const zone =
+              getStandingZone(row);
+
+            const zoneClass =
+              getZoneClass(zone);
+
+            const logo = teamId
+              ? `${API_URL}/api/logo/team/${teamId}`
+              : null;
+
+            return (
+              <div
+                className={`standings-row ${zoneClass}`}
+                key={
+                  teamId ||
+                  `${teamName}-${index}`
+                }
+              >
+                <div className="standing-position">
+                  {getStandingPosition(row) ??
+                    index + 1}
+                </div>
+
+                <div className="standing-team">
+                  <TeamBadge
+                    name={teamName}
+                    logo={logo}
+                    size="normal"
+                  />
+
+                  <div className="standing-team-name">
+                    <strong>
+                      {teamName}
+                    </strong>
+
+                    {zone && (
+                      <small>
+                        {firstValue(
+                          zone?.label,
+                          zone?.rótulo,
+                          zone?.rotulo,
+                          ""
+                        )}
+                      </small>
+                    )}
+                  </div>
+                </div>
+
+                <div className="standing-points">
+                  {getStandingPoints(row) ?? "-"}
+                </div>
+
+                <div>
+                  {getStandingPlayed(row) ?? "-"}
+                </div>
+
+                <div>
+                  {getStandingWins(row) ?? "-"}
+                </div>
+
+                <div>
+                  {getStandingDraws(row) ?? "-"}
+                </div>
+
+                <div>
+                  {getStandingLosses(row) ?? "-"}
+                </div>
+
+                <div>
+                  {getStandingGoalDifference(row) ?? "-"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="standings-empty">
-        <Trophy size={32} />
+      {zones.length > 0 && (
+        <div className="standings-legend">
+          {zones.map((zone, index) => (
+            <span
+              key={
+                firstValue(
+                  zone?.key,
+                  zone?.chave,
+                  index
+                )
+              }
+            >
+              <i
+                className={getZoneClass(zone)}
+              />
 
-        <strong>Classificação real</strong>
+              {firstValue(
+                zone?.label,
+                zone?.rótulo,
+                zone?.rotulo,
+                "Zona"
+              )}
+            </span>
+          ))}
+        </div>
+      )}
 
-        <p>
-          Esta área já está pronta. Vamos preencher
-          somente com a classificação oficial disponível
-          na fonte de dados, sem inventar posições ou pontos.
-        </p>
+      <div className="standings-source">
+        Dados de classificação atualizados pela BSD
       </div>
     </section>
   );
 }
-
 // ======================================================
 // NAVEGAÇÃO INFERIOR
 // ======================================================
