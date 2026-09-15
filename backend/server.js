@@ -969,7 +969,90 @@ app.get(
     }
   }
 );
+// ======================================================
+// CLASSIFICAÇÃO DO CAMPEONATO - BSD
+// ======================================================
 
+app.get(
+  "/api/standings/:leagueId",
+  async (req, res) => {
+    try {
+      const leagueId =
+        encodeURIComponent(
+          req.params.leagueId
+        );
+
+      const seasonId =
+        req.query.season_id;
+
+      if (!seasonId) {
+        return res
+          .status(400)
+          .json({
+            ok: false,
+            error:
+              "season_id é obrigatório",
+          });
+      }
+
+      const safeSeasonId =
+        encodeURIComponent(
+          seasonId
+        );
+
+      const cacheKey =
+        `standings:${leagueId}:${safeSeasonId}`;
+
+      let standings =
+        cacheGet(cacheKey);
+
+      if (!standings) {
+        standings =
+          await apiRequest(
+            `/leagues/${leagueId}/standings/?season_id=${safeSeasonId}`
+          );
+
+        cacheSet(
+          cacheKey,
+          standings,
+          5 * 60 * 1000
+        );
+      }
+
+      res.json({
+        ok: true,
+
+        league_id:
+          req.params.leagueId,
+
+        season_id:
+          seasonId,
+
+        response:
+          standings,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/standings:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
 // ======================================================
 // RÁDIOS
 // ======================================================
