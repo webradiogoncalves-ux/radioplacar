@@ -1100,7 +1100,37 @@ function HomeScreen({
 
           <CalendarDays size={21} />
         </div>
+<div className="rpf-league-grid">
+  <button
+    type="button"
+    className="rpf-league-card"
+    onClick={() =>
+      onOpenCompetition({
+        id: 9,
+        league_id: 9,
+        season_id: 28,
+        name: "Brasileiro Série A",
+      })
+    }
+  >
+    <div className="rpf-league-logo">
+      <div className="competition-logo-fallback">
+        <Trophy size={22} />
+      </div>
+    </div>
 
+    <div className="rpf-league-info">
+      <strong>Brasileiro Série A</strong>
+      <span>Classificação 2026</span>
+    </div>
+
+    <div className="rpf-league-next">
+      <strong>🏆 TABELA</strong>
+    </div>
+
+    <ChevronRight size={18} />
+  </button>
+</div>
         {groups.length === 0 ? (
           <div className="empty-card">
             Nenhum campeonato encontrado.
