@@ -420,13 +420,15 @@ function LeagueBadge({ match }) {
 
 function Header() {
   return (
-    <header className="topbar">
-      <div className="brand">
-        <div className="brand-ball">⚽</div>
+    <header className="topbar rpf-topbar">
+      <div className="brand rpf-brand">
+        <div className="brand-ball rpf-brand-ball">⚽</div>
 
-        <div>
-          <strong>RADIOPLACAR</strong>
-          <span>FUTEBOL & RÁDIO AO VIVO</span>
+        <div className="rpf-brand-text">
+          <strong>
+            <span>RPF</span> PLACAR
+          </strong>
+          <small>FUTEBOL • PLACAR • RÁDIO</small>
         </div>
       </div>
 
@@ -437,7 +439,6 @@ function Header() {
     </header>
   );
 }
-
 // ======================================================
 // BOTÃO FAVORITO
 // ======================================================
@@ -469,7 +470,6 @@ function FavoriteButton({
 // ======================================================
 // CARD DE PARTIDA
 // ======================================================
-
 function MatchCard({
   match,
   favorites,
@@ -489,23 +489,47 @@ function MatchCard({
 
   const radios = getRadios(match);
 
+  const clock = live
+    ? formatClock(match) || "00:00"
+    : finished
+    ? formatClock(match) || "--:--"
+    : "00:00";
+
+  const statusText = live
+    ? "AO VIVO"
+    : finished
+    ? "ENCERRADO"
+    : "AGENDADO";
+
   return (
     <article
-      className={`match-card ${live ? "match-live" : ""}`}
+      className={`match-card rpf-match-card ${
+        live ? "match-live" : ""
+      }`}
       onClick={() => onOpen(match)}
     >
-      <div className="match-card-top">
-        <div
-          className={
-            live
-              ? "match-status status-live"
-              : finished
-              ? "match-status status-finished"
-              : "match-status status-scheduled"
-          }
-        >
-          {live && <span className="mini-live-dot" />}
-          {matchStatus(match)}
+      <div className="rpf-match-header">
+        <div className="rpf-clock-area">
+          <strong className="rpf-clock">{clock}</strong>
+
+          <span
+            className={`rpf-status ${
+              live
+                ? "rpf-status-live"
+                : finished
+                ? "rpf-status-finished"
+                : "rpf-status-scheduled"
+            }`}
+          >
+            {live && <span className="mini-live-dot" />}
+            {statusText}
+          </span>
+
+          {!live && !finished && (
+            <small className="rpf-kickoff">
+              Início {formatTime(match)}
+            </small>
+          )}
         </div>
 
         <FavoriteButton
@@ -515,59 +539,73 @@ function MatchCard({
         />
       </div>
 
-      <div className="match-main">
-        <div className="match-team">
+      <div className="rpf-teams">
+        <div className="rpf-team">
           <TeamBadge
             name={homeName}
             logo={getHomeLogo(match)}
+            size="large"
           />
 
-          <strong>{abbreviation(homeName)}</strong>
-          <span>{homeName}</span>
+          <strong className="rpf-team-code">
+            {abbreviation(homeName)}
+          </strong>
+
+          <span className="rpf-team-name">
+            {homeName}
+          </span>
         </div>
 
-        <div className="match-score">
+        <div className="rpf-versus">
           {hasScore(match) ? (
-            <>
-              <strong>
-                {homeScore}
-                <span>×</span>
-                {awayScore}
-              </strong>
-
-              {live && (
-                <small>{formatClock(match) || "AO VIVO"}</small>
-              )}
-            </>
+            <strong className="rpf-score">
+              <span>{homeScore}</span>
+              <small>−</small>
+              <span>{awayScore}</span>
+            </strong>
           ) : (
-            <>
-              <strong className="match-time">
-                {formatTime(match)}
-              </strong>
-
-              <small>AGENDADO</small>
-            </>
+            <strong className="rpf-score rpf-score-pregame">
+              <span>0</span>
+              <small>−</small>
+              <span>0</span>
+            </strong>
           )}
+
+          <span className="rpf-vs">PLACAR</span>
         </div>
 
-        <div className="match-team">
+        <div className="rpf-team">
           <TeamBadge
             name={awayName}
             logo={getAwayLogo(match)}
+            size="large"
           />
 
-          <strong>{abbreviation(awayName)}</strong>
-          <span>{awayName}</span>
+          <strong className="rpf-team-code">
+            {abbreviation(awayName)}
+          </strong>
+
+          <span className="rpf-team-name">
+            {awayName}
+          </span>
         </div>
       </div>
 
-      <div className="match-card-bottom">
+      <div className="rpf-match-league">
+        <LeagueBadge match={match} />
+        <span>{getLeagueName(match)}</span>
+      </div>
+
+      <div className="rpf-match-footer">
         {radios.length > 0 ? (
           <div className="radio-confirmed">
-            <Radio size={15} />
-            {radios.length === 1
-              ? "1 rádio transmitindo"
-              : `${radios.length} rádios transmitindo`}
+            <Radio size={16} />
+
+            <span>
+              {radios.length === 1
+                ? "1 rádio transmitindo"
+                : `${radios.length} rádios transmitindo`}
+            </span>
           </div>
         ) : (
           <span className="no-radio">
@@ -575,16 +613,14 @@ function MatchCard({
           </span>
         )}
 
-        <ChevronRight size={18} />
+        <ChevronRight size={19} />
       </div>
     </article>
   );
-}
-
+} 
 // ======================================================
 // DESTAQUE TIPO SHORT
 // ======================================================
-
 function HighlightCard({
   match,
   onOpen,
