@@ -1,1201 +1,1838 @@
-/* frontend/styles.css */
+import React, { useEffect, useMemo, useState } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  Home,
+  Trophy,
+  Heart,
+  Radio,
+  Search,
+  ChevronRight,
+  ChevronLeft,
+  CalendarDays,
+  Clock3,
+  Star,
+  Play,
+  ArrowLeft,
+  Wifi,
+} from "lucide-react";
 
-:root {
-  font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+import "../styles.css";
 
-  color: #ffffff;
-  background: #050807;
+const API_URL = "https://radioplacar-api.onrender.com";
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-}
+// ======================================================
+// HELPERS
+// ======================================================
 
-* {
-  box-sizing: border-box;
-}
-
-html {
-  background: #050807;
-}
-
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background:
-    radial-gradient(
-      circle at top,
-      rgba(22, 255, 113, 0.08),
-      transparent 30%
-    ),
-    #050807;
-  color: #ffffff;
-}
-
-button,
-input {
-  font: inherit;
-}
-
-button {
-  -webkit-tap-highlight-color: transparent;
-}
-
-button:focus,
-input:focus {
-  outline: none;
-}
-
-#root {
-  min-height: 100vh;
-}
-
-/* =========================
-   APP
-========================= */
-
-.app-shell {
-  width: 100%;
-  min-height: 100vh;
-  padding-bottom: 92px;
-}
-
-.page-content {
-  width: min(100%, 760px);
-  margin: 0 auto;
-  padding: 18px 14px 30px;
-}
-
-/* =========================
-   TOP BAR
-========================= */
-
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-
-  height: 68px;
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  padding: 0 16px;
-
-  background: rgba(5, 8, 7, 0.96);
-  border-bottom: 1px solid rgba(72, 255, 137, 0.14);
-
-  backdrop-filter: blur(14px);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.brand-icon {
-  width: 38px;
-  height: 38px;
-
-  display: grid;
-  place-items: center;
-
-  border: 1px solid rgba(56, 255, 126, 0.45);
-  border-radius: 11px;
-
-  background: rgba(35, 255, 113, 0.09);
-
-  font-size: 20px;
-
-  box-shadow:
-    0 0 22px rgba(35, 255, 113, 0.12);
-}
-
-.brand-name {
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: -0.7px;
-}
-
-.brand-name span {
-  color: #32ff78;
-}
-
-.live-indicator {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-
-  padding: 7px 10px;
-
-  border-radius: 999px;
-
-  background: rgba(44, 255, 119, 0.08);
-
-  color: #45ff83;
-
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.7px;
-}
-
-.live-indicator i {
-  width: 7px;
-  height: 7px;
-
-  border-radius: 50%;
-
-  background: #35ff79;
-
-  box-shadow:
-    0 0 10px #35ff79,
-    0 0 18px rgba(53, 255, 121, 0.65);
-
-  animation: livePulse 1.4s infinite;
-}
-
-@keyframes livePulse {
-  0%,
-  100% {
-    opacity: 1;
+function firstValue(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
   }
 
-  50% {
-    opacity: 0.35;
+  return null;
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function abbreviation(name) {
+  const clean = normalizeText(name)
+    .replace(/[^a-zA-Z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!clean) return "---";
+
+  const ignore = [
+    "FC",
+    "EC",
+    "SC",
+    "AC",
+    "CF",
+    "CLUB",
+    "CLUBE",
+    "DE",
+    "DA",
+    "DO",
+    "DOS",
+    "DAS",
+  ];
+
+  const words = clean
+    .split(" ")
+    .filter(Boolean)
+    .filter((word) => !ignore.includes(word.toUpperCase()));
+
+  if (!words.length) {
+    return clean.slice(0, 3).toUpperCase();
+  }
+
+  if (words.length === 1) {
+    return words[0].slice(0, 3).toUpperCase();
+  }
+
+  if (words.length === 2) {
+    return (
+      words[0].slice(0, 1) +
+      words[1].slice(0, 2)
+    ).toUpperCase();
+  }
+
+  return words
+    .slice(0, 3)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+}
+
+function getMatchId(match) {
+  return String(
+    firstValue(
+      match?.id,
+      match?.fixture_id,
+      match?.event_id,
+      match?.game_id,
+      ""
+    )
+  );
+}
+
+function getHomeName(match) {
+  return String(
+    firstValue(
+      match?.home_team?.name,
+      match?.home_team,
+      match?.home?.name,
+      match?.home,
+      match?.mandante?.name,
+      match?.mandante,
+      "Mandante"
+    )
+  );
+}
+
+function getAwayName(match) {
+  return String(
+    firstValue(
+      match?.away_team?.name,
+      match?.away_team,
+      match?.away?.name,
+      match?.away,
+      match?.visitante?.name,
+      match?.visitante,
+      "Visitante"
+    )
+  );
+}
+
+function getHomeLogo(match) {
+  return firstValue(
+    match?.home_team_logo,
+    match?.home_logo,
+    match?.home_team?.logo,
+    match?.home_team?.image,
+    match?.home?.logo,
+    match?.home?.image,
+    match?.mandante?.logo
+  );
+}
+
+function getAwayLogo(match) {
+  return firstValue(
+    match?.away_team_logo,
+    match?.away_logo,
+    match?.away_team?.logo,
+    match?.away_team?.image,
+    match?.away?.logo,
+    match?.away?.image,
+    match?.visitante?.logo
+  );
+}
+
+function getLeagueName(match) {
+  return String(
+    firstValue(
+      match?.league?.name,
+      match?.league_name,
+      match?.league,
+      match?.competition?.name,
+      match?.competition,
+      match?.campeonato?.nome,
+      match?.campeonato,
+      "Campeonato"
+    )
+  );
+}
+
+function getLeagueId(match) {
+  return String(
+    firstValue(
+      match?.league_id,
+      match?.league?.id,
+      match?.competition_id,
+      match?.competition?.id,
+      getLeagueName(match)
+    )
+  );
+}
+
+function getLeagueLogo(match) {
+  return firstValue(
+    match?.league_logo,
+    match?.league?.logo,
+    match?.league?.image,
+    match?.competition?.logo,
+    match?.competition?.image
+  );
+}
+
+function getHomeScore(match) {
+  return firstValue(
+    match?.home_score,
+    match?.score_home,
+    match?.home_goals,
+    match?.goals?.home,
+    match?.score?.home,
+    match?.home?.score,
+    match?.home_team?.score
+  );
+}
+
+function getAwayScore(match) {
+  return firstValue(
+    match?.away_score,
+    match?.score_away,
+    match?.away_goals,
+    match?.goals?.away,
+    match?.score?.away,
+    match?.away?.score,
+    match?.away_team?.score
+  );
+}
+
+function getRawStatus(match) {
+  return String(
+    firstValue(
+      match?.status?.short,
+      match?.status?.long,
+      match?.status,
+      match?.state,
+      match?.match_status,
+      ""
+    )
+  ).toLowerCase();
+}
+
+function isLive(match) {
+  const status = getRawStatus(match);
+
+  return (
+    status.includes("live") ||
+    status.includes("progress") ||
+    status.includes("1st") ||
+    status.includes("2nd") ||
+    status.includes("half") ||
+    status.includes("playing")
+  );
+}
+
+function isFinished(match) {
+  const status = getRawStatus(match);
+
+  return (
+    status.includes("finished") ||
+    status.includes("full") ||
+    status === "ft" ||
+    status.includes("ended") ||
+    status.includes("final")
+  );
+}
+
+function getMinute(match) {
+  return firstValue(
+    match?.minute,
+    match?.elapsed,
+    match?.status?.elapsed,
+    match?.time?.minute
+  );
+}
+
+function formatClock(match) {
+  const minute = Number(getMinute(match));
+
+  if (!Number.isFinite(minute)) {
+    return null;
+  }
+
+  return `${String(minute).padStart(2, "0")}:00`;
+}
+
+function getMatchDate(match) {
+  return firstValue(
+    match?.date,
+    match?.start_date,
+    match?.datetime,
+    match?.start_time,
+    match?.fixture?.date
+  );
+}
+
+function formatTime(match) {
+  const raw = getMatchDate(match);
+
+  if (!raw) return "--:--";
+
+  try {
+    const date = new Date(raw);
+
+    if (Number.isNaN(date.getTime())) {
+      const found = String(raw).match(/\b(\d{1,2}):(\d{2})\b/);
+
+      if (found) {
+        return `${found[1].padStart(2, "0")}:${found[2]}`;
+      }
+
+      return "--:--";
+    }
+
+    return new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+  } catch {
+    return "--:--";
   }
 }
 
-/* =========================
-   HERO
-========================= */
+function matchStatus(match) {
+  if (isLive(match)) {
+    return formatClock(match) || "AO VIVO";
+  }
 
-.hero {
-  padding: 15px 4px 18px;
+  if (isFinished(match)) {
+    return "ENCERRADO";
+  }
+
+  return "AGENDADO";
 }
 
-.hero > span {
-  color: #35ff79;
-
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 1.8px;
+function hasScore(match) {
+  return (
+    getHomeScore(match) !== null &&
+    getAwayScore(match) !== null
+  );
 }
 
-.hero h1 {
-  margin: 6px 0 7px;
-
-  font-size: clamp(27px, 7vw, 40px);
-  line-height: 1.04;
-
-  letter-spacing: -1.6px;
+function getRadios(match) {
+  return Array.isArray(match?.radios)
+    ? match.radios.filter((radio) => radio?.match_confirmed === true)
+    : [];
 }
 
-.hero p {
-  max-width: 480px;
+function todayISO(offset = 0) {
+  const now = new Date();
 
-  margin: 0;
+  const brasil = new Date(
+    now.toLocaleString("en-US", {
+      timeZone: "America/Sao_Paulo",
+    })
+  );
 
-  color: #8c9992;
+  brasil.setDate(brasil.getDate() + offset);
 
-  font-size: 13px;
-  line-height: 1.5;
+  const year = brasil.getFullYear();
+  const month = String(brasil.getMonth() + 1).padStart(2, "0");
+  const day = String(brasil.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
-/* =========================
-   DATE BUTTONS
-========================= */
+// ======================================================
+// ESCUDO / 3 LETRAS
+// ======================================================
 
-.date-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+function TeamBadge({
+  name,
+  logo,
+  size = "normal",
+}) {
+  const [failed, setFailed] = useState(false);
 
-  gap: 7px;
-
-  margin-bottom: 22px;
-
-  padding: 5px;
-
-  border: 1px solid #18221d;
-  border-radius: 14px;
-
-  background: #0a0f0c;
-}
-
-.date-tabs button {
-  min-height: 39px;
-
-  border: 0;
-  border-radius: 10px;
-
-  background: transparent;
-
-  color: #69756e;
-
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.8px;
-
-  cursor: pointer;
-}
-
-.date-tabs button.active {
-  background: #20ee69;
-
-  color: #031008;
-
-  box-shadow:
-    0 5px 20px rgba(32, 238, 105, 0.18);
-}
-
-/* =========================
-   COMPETITIONS
-========================= */
-
-.competition {
-  margin-bottom: 26px;
-}
-
-.competition-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  margin: 0 3px 9px;
-}
-
-.competition-title > div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.competition-title strong {
-  color: #c9d3ce;
-
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.competition-title small {
-  color: #5d6962;
-
-  font-size: 10px;
-  font-weight: 700;
-}
-
-/* =========================
-   MATCH CARD
-========================= */
-
-.match-card {
-  overflow: hidden;
-
-  margin-bottom: 11px;
-
-  border: 1px solid #17211c;
-  border-radius: 18px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(20, 31, 25, 0.96),
-      rgba(8, 13, 10, 0.98)
+  if (logo && !failed) {
+    return (
+      <div className={`team-badge team-badge-${size}`}>
+        <img
+          src={logo}
+          alt={name}
+          loading="lazy"
+          onError={() => setFailed(true)}
+        />
+      </div>
     );
+  }
 
-  box-shadow:
-    0 12px 35px rgba(0, 0, 0, 0.24);
-
-  cursor: pointer;
-
-  transition:
-    transform 0.18s ease,
-    border-color 0.18s ease;
+  return (
+    <div
+      className={`team-badge team-badge-${size} team-badge-fallback`}
+      title={name}
+    >
+      {abbreviation(name)}
+    </div>
+  );
 }
 
-.match-card:active {
-  transform: scale(0.99);
-}
-
-.match-card:hover {
-  border-color: rgba(52, 255, 122, 0.27);
-}
-
-.match-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  padding: 12px 13px 4px;
-}
-
-.status-pill {
-  padding: 5px 8px;
-
-  border: 1px solid #263029;
-  border-radius: 7px;
-
-  color: #87928c;
-
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 0.6px;
-}
-
-.status-pill.live {
-  border-color: rgba(44, 255, 117, 0.35);
-
-  background: rgba(44, 255, 117, 0.08);
-
-  color: #36ff79;
-}
-
-.match-clock {
-  color: #42ff7e;
-
-  font-family:
-    "Courier New",
-    monospace;
-
-  font-size: 13px;
-  font-weight: 900;
-
-  letter-spacing: 0.5px;
-}
-
-/* =========================
-   SCOREBOARD
-========================= */
-
-.scoreboard {
-  display: grid;
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto
-    minmax(0, 1fr);
-
-  align-items: center;
-
-  gap: 8px;
-
-  padding: 13px 12px 18px;
-}
-
-.team {
-  min-width: 0;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-
-  text-align: center;
-}
-
-.team-badge {
-  width: 57px;
-  height: 57px;
-
-  display: grid;
-  place-items: center;
-
-  border: 1px solid rgba(49, 255, 121, 0.3);
-  border-radius: 17px;
-
-  background:
-    radial-gradient(
-      circle at 50% 20%,
-      rgba(52, 255, 122, 0.17),
-      transparent 65%
-    ),
-    #0c1510;
-
-  color: #42ff80;
-
-  font-size: 18px;
-  font-weight: 1000;
-  letter-spacing: -0.5px;
-
-  box-shadow:
-    inset 0 0 18px rgba(48, 255, 118, 0.04),
-    0 7px 20px rgba(0, 0, 0, 0.25);
-}
-
-.team-full-name {
-  width: 100%;
-
-  margin-top: 8px;
-
-  overflow: hidden;
-
-  color: #dce4e0;
-
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1.2;
-
-  text-overflow: ellipsis;
-}
-
-.score-center {
-  min-width: 94px;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.score {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  gap: 9px;
-
-  color: #ffffff;
-
-  font-size: 31px;
-  font-weight: 1000;
-  letter-spacing: -1px;
-}
-
-.score b {
-  color: #536058;
-
-  font-size: 17px;
-}
-
-.score-center small {
-  max-width: 100px;
-
-  margin-top: 3px;
-
-  overflow: hidden;
-
-  color: #657168;
-
-  font-size: 8px;
-  font-weight: 800;
-
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* =========================
-   RADIOS INSIDE MATCH
-========================= */
-
-.match-radios {
-  padding: 0 12px 10px;
-}
-
-.radio-title {
-  margin-bottom: 7px;
-
-  color: #4c5b52;
-
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: 1.1px;
-}
-
-.radio-row {
-  display: flex;
-  align-items: center;
-
-  min-height: 52px;
-
-  margin-bottom: 6px;
-  padding: 8px 9px;
-
-  border: 1px solid #1b2921;
-  border-radius: 12px;
-
-  background: rgba(12, 20, 15, 0.85);
-}
-
-.radio-symbol {
-  width: 34px;
-  height: 34px;
-
-  display: grid;
-  place-items: center;
-
-  flex: 0 0 auto;
-
-  border-radius: 10px;
-
-  background: rgba(48, 255, 119, 0.08);
-
-  font-size: 16px;
-}
-
-.radio-info {
-  min-width: 0;
-
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-
-  padding: 0 9px;
-}
-
-.radio-info strong {
-  overflow: hidden;
-
-  color: #e5ebe8;
-
-  font-size: 11px;
-
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.radio-info span {
-  margin-top: 2px;
-
-  color: #637068;
-
-  font-size: 9px;
-}
-
-.play-button {
-  width: 34px;
-  height: 34px;
-
-  display: grid;
-  place-items: center;
-
-  flex: 0 0 auto;
-
-  border: 0;
-  border-radius: 50%;
-
-  background: #31f876;
-
-  color: #031008;
-
-  font-size: 12px;
-  font-weight: 900;
-
-  cursor: pointer;
-
-  box-shadow:
-    0 0 18px rgba(49, 248, 118, 0.16);
-}
-
-.play-button.disabled {
-  background: #17211c;
-
-  color: #536058;
-
-  box-shadow: none;
-
-  cursor: not-allowed;
-}
-
-.open-match {
-  padding: 9px 12px 11px;
-
-  border-top: 1px solid #142019;
-
-  color: #4f5e55;
-
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: 0.7px;
-
-  text-align: center;
-}
-
-/* =========================
-   LOADING / ERROR / EMPTY
-========================= */
-
-.loading-box,
-.empty-box,
-.error-box {
-  margin: 16px 0;
-  padding: 22px 15px;
-
-  border: 1px solid #18231d;
-  border-radius: 15px;
-
-  background: #0b110d;
-
-  color: #78857e;
-
-  font-size: 12px;
-
-  text-align: center;
-}
-
-.error-box {
-  color: #ff7777;
-}
-
-.error-box button {
-  display: block;
-
-  margin: 12px auto 0;
-  padding: 9px 14px;
-
-  border: 0;
-  border-radius: 9px;
-
-  background: #2bf574;
-
-  color: #041108;
-
-  font-size: 10px;
-  font-weight: 900;
-
-  cursor: pointer;
-}
-
-.empty-small {
-  padding: 18px;
-
-  border: 1px dashed #243129;
-  border-radius: 12px;
-
-  color: #6c7971;
-
-  font-size: 11px;
-
-  text-align: center;
-}
-
-/* =========================
-   BOTTOM NAVIGATION
-========================= */
-
-.bottom-nav {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 60;
-
-  height: 72px;
-
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-
-  padding:
-    6px
-    max(10px, env(safe-area-inset-right))
-    max(6px, env(safe-area-inset-bottom))
-    max(10px, env(safe-area-inset-left));
-
-  border-top: 1px solid #18221d;
-
-  background: rgba(5, 9, 7, 0.97);
-
-  backdrop-filter: blur(16px);
-}
-
-.bottom-nav button {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-
-  gap: 3px;
-
-  border: 0;
-
-  background: transparent;
-
-  color: #58645d;
-
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: 0.7px;
-
-  cursor: pointer;
-}
-
-.bottom-nav button span {
-  font-size: 18px;
-}
-
-.bottom-nav button.active {
-  color: #39ff7c;
-}
-
-/* =========================
-   RADIO CATALOG
-========================= */
-
-.radios-page {
-  padding-top: 25px;
-}
-
-.page-title {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-
-  margin-bottom: 17px;
-}
-
-.page-title span {
-  color: #35ff79;
-
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 1.5px;
-}
-
-.page-title h1 {
-  margin: 4px 0 0;
-
-  font-size: 27px;
-  letter-spacing: -1px;
-}
-
-.page-title > strong {
-  color: #35ff79;
-
-  font-size: 25px;
-}
-
-.radio-search {
-  width: 100%;
-  height: 46px;
-
-  margin-bottom: 20px;
-  padding: 0 14px;
-
-  border: 1px solid #1b2921;
-  border-radius: 13px;
-
-  background: #0b120e;
-
-  color: #ffffff;
-
-  font-size: 12px;
-}
-
-.radio-search::placeholder {
-  color: #566159;
-}
-
-.radio-search:focus {
-  border-color: rgba(48, 255, 118, 0.5);
-
-  box-shadow:
-    0 0 0 3px rgba(48, 255, 118, 0.05);
-}
-
-.radio-state {
-  margin-bottom: 23px;
-}
-
-.radio-state h2 {
-  margin: 0 3px 8px;
-
-  color: #68756d;
-
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 1.2px;
-}
-
-.catalog-radio {
-  display: flex;
-  align-items: center;
-
-  min-height: 62px;
-
-  margin-bottom: 7px;
-  padding: 9px 10px;
-
-  border: 1px solid #18241d;
-  border-radius: 14px;
-
-  background: #0b120e;
-}
-
-.catalog-radio-icon {
-  width: 40px;
-  height: 40px;
-
-  display: grid;
-  place-items: center;
-
-  flex: 0 0 auto;
-
-  border-radius: 12px;
-
-  background: rgba(48, 255, 118, 0.08);
-}
-
-.catalog-radio-text {
-  min-width: 0;
-
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-
-  padding: 0 10px;
-}
-
-.catalog-radio-text strong {
-  overflow: hidden;
-
-  color: #e1e8e4;
-
-  font-size: 12px;
-
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.catalog-radio-text span {
-  margin-top: 3px;
-
-  color: #647168;
-
-  font-size: 9px;
-}
-
-.catalog-status {
-  padding: 6px 8px;
-
-  border-radius: 8px;
-
-  background: #161e19;
-
-  color: #59655d;
-
-  font-size: 7px;
-  font-weight: 900;
-}
-
-.catalog-status.available {
-  background: rgba(48, 255, 118, 0.11);
-
-  color: #3cff7d;
-}
-
-/* =========================
-   MATCH DETAIL
-========================= */
-
-.detail-page {
-  min-height: 100vh;
-
-  background:
-    radial-gradient(
-      circle at 50% 0%,
-      rgba(45, 255, 116, 0.09),
-      transparent 34%
-    ),
-    #050807;
-}
-
-.detail-header {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-
-  min-height: 66px;
-
-  display: grid;
-  grid-template-columns: 42px 1fr 42px;
-
-  align-items: center;
-
-  padding: 8px 12px;
-
-  border-bottom: 1px solid #17211c;
-
-  background: rgba(5, 8, 7, 0.96);
-
-  backdrop-filter: blur(15px);
-}
-
-.back-button {
-  width: 38px;
-  height: 38px;
-
-  border: 1px solid #1c2922;
-  border-radius: 11px;
-
-  background: #0d1510;
-
-  color: #e2e9e5;
-
-  font-size: 27px;
-
-  cursor: pointer;
-}
-
-.detail-header > div:nth-child(2) {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.detail-header strong {
-  font-size: 11px;
-  letter-spacing: 1px;
-}
-
-.detail-header span {
-  margin-top: 2px;
-
-  color: #637068;
-
-  font-size: 8px;
-}
-
-.detail-live-dot {
-  color: #32ff77;
-
-  text-align: right;
-
-  text-shadow:
-    0 0 12px #32ff77;
-}
-
-.detail-content {
-  width: min(100%, 650px);
-  margin: 0 auto;
-  padding: 22px 14px 35px;
-}
-
-.detail-competition {
-  margin-bottom: 17px;
-
-  color: #6c7871;
-
-  font-size: 10px;
-  font-weight: 900;
-
-  text-align: center;
-  text-transform: uppercase;
-}
-
-.detail-scoreboard {
-  display: grid;
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto
-    minmax(0, 1fr);
-
-  align-items: center;
-
-  gap: 8px;
-
-  padding: 24px 10px;
-
-  border: 1px solid #1a2820;
-  border-radius: 20px;
-
-  background:
-    linear-gradient(
-      145deg,
-      #0e1812,
-      #080d0a
+function LeagueBadge({ match }) {
+  const logo = getLeagueLogo(match);
+  const name = getLeagueName(match);
+
+  const [failed, setFailed] = useState(false);
+
+  if (logo && !failed) {
+    return (
+      <div className="league-badge">
+        <img
+          src={logo}
+          alt={name}
+          onError={() => setFailed(true)}
+        />
+      </div>
     );
-
-  box-shadow:
-    0 15px 45px rgba(0, 0, 0, 0.28);
-}
-
-.detail-scoreboard .team-badge {
-  width: 67px;
-  height: 67px;
-
-  border-radius: 20px;
-
-  font-size: 20px;
-}
-
-.detail-scoreboard .team-full-name {
-  max-width: 125px;
-
-  font-size: 10px;
-}
-
-.detail-score-center {
-  min-width: 100px;
-
-  text-align: center;
-}
-
-.detail-clock {
-  margin-bottom: 5px;
-
-  color: #3dff7e;
-
-  font-family:
-    "Courier New",
-    monospace;
-
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.detail-score {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  gap: 10px;
-
-  color: #ffffff;
-
-  font-size: 38px;
-  font-weight: 1000;
-
-  letter-spacing: -2px;
-}
-
-.detail-score span {
-  color: #526057;
-
-  font-size: 19px;
-}
-
-.detail-status {
-  margin-top: 4px;
-
-  color: #6a776f;
-
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: 0.8px;
-}
-
-.detail-section {
-  margin-top: 17px;
-  padding: 14px;
-
-  border: 1px solid #18241d;
-  border-radius: 17px;
-
-  background: #0a100c;
-}
-
-.detail-section h2 {
-  margin: 0 0 12px;
-
-  color: #d9e2dd;
-
-  font-size: 11px;
-  letter-spacing: 0.5px;
-}
-
-.match-data-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 15px;
-
-  min-height: 39px;
-
-  border-bottom: 1px solid #142019;
-
-  font-size: 10px;
-}
-
-.match-data-row:last-child {
-  border-bottom: 0;
-}
-
-.match-data-row span {
-  color: #68756d;
-}
-
-.match-data-row strong {
-  color: #d4dcd8;
-
-  text-align: right;
-}
-
-/* =========================
-   SMALL DEVICES
-========================= */
-
-@media (max-width: 380px) {
-  .page-content {
-    padding-right: 10px;
-    padding-left: 10px;
   }
 
-  .scoreboard {
-    gap: 3px;
-  }
-
-  .team-badge {
-    width: 50px;
-    height: 50px;
-
-    border-radius: 15px;
-
-    font-size: 16px;
-  }
-
-  .score {
-    gap: 6px;
-
-    font-size: 27px;
-  }
-
-  .score-center {
-    min-width: 78px;
-  }
-
-  .detail-scoreboard .team-badge {
-    width: 57px;
-    height: 57px;
-
-    font-size: 17px;
-  }
-
-  .detail-score {
-    font-size: 32px;
-  }
-
-  .detail-score-center {
-    min-width: 86px;
-  }
+  return (
+    <div className="league-badge league-badge-fallback">
+      <Trophy size={16} />
+    </div>
+  );
 }
 
-/* =========================
-   DESKTOP PREVIEW
-========================= */
+// ======================================================
+// CABEÇALHO
+// ======================================================
 
-@media (min-width: 800px) {
-  body {
-    background:
-      radial-gradient(
-        circle at 50% -10%,
-        rgba(45, 255, 116, 0.1),
-        transparent 28%
-      ),
-      #030504;
-  }
+function Header() {
+  return (
+    <header className="topbar">
+      <div className="brand">
+        <div className="brand-ball">⚽</div>
 
-  .app-shell,
-  .detail-page {
-    width: 100%;
-  }
+        <div>
+          <strong>RADIOPLACAR</strong>
+          <span>FUTEBOL & RÁDIO AO VIVO</span>
+        </div>
+      </div>
 
-  .match-card {
-    border-radius: 20px;
-  }
+      <div className="live-dot-wrap">
+        <span className="live-dot" />
+        AO VIVO
+      </div>
+    </header>
+  );
 }
+
+// ======================================================
+// BOTÃO FAVORITO
+// ======================================================
+
+function FavoriteButton({
+  matchId,
+  favorites,
+  onToggle,
+}) {
+  const active = favorites.includes(String(matchId));
+
+  return (
+    <button
+      className={`favorite-button ${active ? "active" : ""}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle(matchId);
+      }}
+      aria-label="Favoritar"
+    >
+      <Heart
+        size={19}
+        fill={active ? "currentColor" : "none"}
+      />
+    </button>
+  );
+}
+
+// ======================================================
+// CARD DE PARTIDA
+// ======================================================
+
+function MatchCard({
+  match,
+  favorites,
+  onToggleFavorite,
+  onOpen,
+}) {
+  const id = getMatchId(match);
+
+  const homeName = getHomeName(match);
+  const awayName = getAwayName(match);
+
+  const live = isLive(match);
+  const finished = isFinished(match);
+
+  const homeScore = getHomeScore(match);
+  const awayScore = getAwayScore(match);
+
+  const radios = getRadios(match);
+
+  return (
+    <article
+      className={`match-card ${live ? "match-live" : ""}`}
+      onClick={() => onOpen(match)}
+    >
+      <div className="match-card-top">
+        <div
+          className={
+            live
+              ? "match-status status-live"
+              : finished
+              ? "match-status status-finished"
+              : "match-status status-scheduled"
+          }
+        >
+          {live && <span className="mini-live-dot" />}
+          {matchStatus(match)}
+        </div>
+
+        <FavoriteButton
+          matchId={id}
+          favorites={favorites}
+          onToggle={onToggleFavorite}
+        />
+      </div>
+
+      <div className="match-main">
+        <div className="match-team">
+          <TeamBadge
+            name={homeName}
+            logo={getHomeLogo(match)}
+          />
+
+          <strong>{abbreviation(homeName)}</strong>
+          <span>{homeName}</span>
+        </div>
+
+        <div className="match-score">
+          {hasScore(match) ? (
+            <>
+              <strong>
+                {homeScore}
+                <span>×</span>
+                {awayScore}
+              </strong>
+
+              {live && (
+                <small>{formatClock(match) || "AO VIVO"}</small>
+              )}
+            </>
+          ) : (
+            <>
+              <strong className="match-time">
+                {formatTime(match)}
+              </strong>
+
+              <small>AGENDADO</small>
+            </>
+          )}
+        </div>
+
+        <div className="match-team">
+          <TeamBadge
+            name={awayName}
+            logo={getAwayLogo(match)}
+          />
+
+          <strong>{abbreviation(awayName)}</strong>
+          <span>{awayName}</span>
+        </div>
+      </div>
+
+      <div className="match-card-bottom">
+        {radios.length > 0 ? (
+          <div className="radio-confirmed">
+            <Radio size={15} />
+            {radios.length === 1
+              ? "1 rádio transmitindo"
+              : `${radios.length} rádios transmitindo`}
+          </div>
+        ) : (
+          <span className="no-radio">
+            Sem rádio confirmada
+          </span>
+        )}
+
+        <ChevronRight size={18} />
+      </div>
+    </article>
+  );
+}
+
+// ======================================================
+// DESTAQUE TIPO SHORT
+// ======================================================
+
+function HighlightCard({
+  match,
+  onOpen,
+}) {
+  const homeName = getHomeName(match);
+  const awayName = getAwayName(match);
+
+  return (
+    <button
+      className="highlight-card"
+      onClick={() => onOpen(match)}
+    >
+      <div className="highlight-league">
+        <LeagueBadge match={match} />
+
+        <span>{getLeagueName(match)}</span>
+      </div>
+
+      <div className="highlight-teams">
+        <div>
+          <TeamBadge
+            name={homeName}
+            logo={getHomeLogo(match)}
+            size="large"
+          />
+
+          <strong>{abbreviation(homeName)}</strong>
+        </div>
+
+        <div className="highlight-center">
+          {hasScore(match) ? (
+            <strong>
+              {getHomeScore(match)}
+              <span>×</span>
+              {getAwayScore(match)}
+            </strong>
+          ) : (
+            <strong>{formatTime(match)}</strong>
+          )}
+
+          <small>{matchStatus(match)}</small>
+        </div>
+
+        <div>
+          <TeamBadge
+            name={awayName}
+            logo={getAwayLogo(match)}
+            size="large"
+          />
+
+          <strong>{abbreviation(awayName)}</strong>
+        </div>
+      </div>
+
+      <div className="highlight-footer">
+        <span>
+          {getHomeName(match)} x {getAwayName(match)}
+        </span>
+
+        <ChevronRight size={17} />
+      </div>
+    </button>
+  );
+}
+
+// ======================================================
+// GRUPO POR CAMPEONATO
+// ======================================================
+
+function CompetitionSection({
+  leagueName,
+  matches,
+  favorites,
+  onToggleFavorite,
+  onOpen,
+  onOpenCompetition,
+}) {
+  if (!matches.length) return null;
+
+  const example = matches[0];
+
+  return (
+    <section className="competition-section">
+      <div className="competition-header">
+        <div className="competition-title">
+          <LeagueBadge match={example} />
+
+          <div>
+            <small>CAMPEONATO</small>
+            <h3>{leagueName}</h3>
+          </div>
+        </div>
+
+        <button
+          className="competition-link"
+          onClick={() =>
+            onOpenCompetition({
+              id: getLeagueId(example),
+              name: leagueName,
+              example,
+            })
+          }
+        >
+          Ver tudo
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      <div className="competition-matches">
+        {matches.map((match, index) => (
+          <MatchCard
+            key={`${getMatchId(match)}-${index}`}
+            match={match}
+            favorites={favorites}
+            onToggleFavorite={onToggleFavorite}
+            onOpen={onOpen}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ======================================================
+// HOME
+// ======================================================
+
+function HomeScreen({
+  matches,
+  favorites,
+  onToggleFavorite,
+  onOpenMatch,
+  onOpenCompetition,
+  loading,
+}) {
+  const liveMatches = matches.filter(isLive);
+
+  const highlights =
+    liveMatches.length > 0
+      ? [...liveMatches, ...matches.filter((m) => !isLive(m))].slice(0, 8)
+      : matches.slice(0, 8);
+
+  const groups = useMemo(() => {
+    const map = new Map();
+
+    for (const match of matches) {
+      const league = getLeagueName(match);
+
+      if (!map.has(league)) {
+        map.set(league, []);
+      }
+
+      map.get(league).push(match);
+    }
+
+    return Array.from(map.entries());
+  }, [matches]);
+
+  return (
+    <main className="screen home-screen">
+      <section className="home-hero">
+        <div>
+          <span className="hero-kicker">
+            ⚽ FUTEBOL HOJE
+          </span>
+
+          <h1>O futebol do dia está aqui.</h1>
+
+          <p>
+            Placares, jogos, campeonatos e as rádios
+            que realmente estão transmitindo.
+          </p>
+        </div>
+
+        <div className="hero-stat">
+          <strong>{matches.length}</strong>
+          <span>PARTIDAS</span>
+        </div>
+      </section>
+
+      <section className="home-block">
+        <div className="section-heading">
+          <div>
+            <span className="section-kicker">
+              EM DESTAQUE
+            </span>
+
+            <h2>Destaques do dia</h2>
+          </div>
+
+          <Star size={21} />
+        </div>
+
+        {loading ? (
+          <div className="loading-card">
+            Carregando destaques...
+          </div>
+        ) : highlights.length > 0 ? (
+          <div className="highlights-scroll">
+            {highlights.map((match, index) => (
+              <HighlightCard
+                key={`highlight-${getMatchId(match)}-${index}`}
+                match={match}
+                onOpen={onOpenMatch}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="empty-card">
+            Nenhuma partida encontrada para hoje.
+          </div>
+        )}
+      </section>
+
+      <section className="home-block">
+        <div className="section-heading">
+          <div>
+            <span className="section-kicker">
+              PROGRAMAÇÃO
+            </span>
+
+            <h2>Por campeonato</h2>
+          </div>
+
+          <CalendarDays size={21} />
+        </div>
+
+        <div className="home-competitions">
+          {groups.map(([league, leagueMatches]) => {
+            const example = leagueMatches[0];
+
+            return (
+              <button
+                key={league}
+                className="home-competition-card"
+                onClick={() =>
+                  onOpenCompetition({
+                    id: getLeagueId(example),
+                    name: league,
+                    example,
+                  })
+                }
+              >
+                <div className="home-competition-left">
+                  <LeagueBadge match={example} />
+
+                  <div>
+                    <strong>{league}</strong>
+
+                    <span>
+                      {leagueMatches.length}{" "}
+                      {leagueMatches.length === 1
+                        ? "partida"
+                        : "partidas"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="home-competition-preview">
+                  {leagueMatches.slice(0, 3).map((match, index) => (
+                    <div
+                      key={`${getMatchId(match)}-${index}`}
+                      className="mini-fixture"
+                    >
+                      <span>
+                        {abbreviation(getHomeName(match))}
+                      </span>
+
+                      <strong>
+                        {hasScore(match)
+                          ? `${getHomeScore(match)} × ${getAwayScore(match)}`
+                          : formatTime(match)}
+                      </strong>
+
+                      <span>
+                        {abbreviation(getAwayName(match))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <ChevronRight size={19} />
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {liveMatches.length > 0 && (
+        <section className="home-block">
+          <div className="section-heading">
+            <div>
+              <span className="section-kicker live-kicker">
+                AO VIVO
+              </span>
+
+              <h2>Jogando agora</h2>
+            </div>
+
+            <Wifi size={21} />
+          </div>
+
+          <div className="competition-matches">
+            {liveMatches.slice(0, 5).map((match, index) => (
+              <MatchCard
+                key={`live-${getMatchId(match)}-${index}`}
+                match={match}
+                favorites={favorites}
+                onToggleFavorite={onToggleFavorite}
+                onOpen={onOpenMatch}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </main>
+  );
+}
+
+// ======================================================
+// JOGOS
+// ======================================================
+
+function GamesScreen({
+  matches,
+  favorites,
+  onToggleFavorite,
+  onOpenMatch,
+  onOpenCompetition,
+  loading,
+  selectedDate,
+  onDateChange,
+}) {
+  const groups = useMemo(() => {
+    const map = new Map();
+
+    for (const match of matches) {
+      const league = getLeagueName(match);
+
+      if (!map.has(league)) {
+        map.set(league, []);
+      }
+
+      map.get(league).push(match);
+    }
+
+    return Array.from(map.entries());
+  }, [matches]);
+
+  return (
+    <main className="screen games-screen">
+      <div className="screen-title">
+        <div>
+          <span className="section-kicker">PLACARES</span>
+          <h1>Jogos</h1>
+        </div>
+
+        <Trophy size={27} />
+      </div>
+
+      <div className="date-selector">
+        <button
+          className={selectedDate === todayISO(-1) ? "active" : ""}
+          onClick={() => onDateChange(todayISO(-1))}
+        >
+          <span>ONTEM</span>
+          <strong>
+            {todayISO(-1).slice(8, 10)}
+          </strong>
+        </button>
+
+        <button
+          className={selectedDate === todayISO(0) ? "active" : ""}
+          onClick={() => onDateChange(todayISO(0))}
+        >
+          <span>HOJE</span>
+          <strong>
+            {todayISO(0).slice(8, 10)}
+          </strong>
+        </button>
+
+        <button
+          className={selectedDate === todayISO(1) ? "active" : ""}
+          onClick={() => onDateChange(todayISO(1))}
+        >
+          <span>AMANHÃ</span>
+          <strong>
+            {todayISO(1).slice(8, 10)}
+          </strong>
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="loading-card">
+          Carregando partidas...
+        </div>
+      ) : groups.length === 0 ? (
+        <div className="empty-card">
+          Nenhuma partida encontrada nesta data.
+        </div>
+      ) : (
+        groups.map(([league, leagueMatches]) => (
+          <CompetitionSection
+            key={league}
+            leagueName={league}
+            matches={leagueMatches}
+            favorites={favorites}
+            onToggleFavorite={onToggleFavorite}
+            onOpen={onOpenMatch}
+            onOpenCompetition={onOpenCompetition}
+          />
+        ))
+      )}
+    </main>
+  );
+}
+
+// ======================================================
+// FAVORITOS
+// ======================================================
+
+function FavoritesScreen({
+  matches,
+  favorites,
+  onToggleFavorite,
+  onOpenMatch,
+}) {
+  const favoriteMatches = matches.filter((match) =>
+    favorites.includes(getMatchId(match))
+  );
+
+  return (
+    <main className="screen favorites-screen">
+      <div className="screen-title">
+        <div>
+          <span className="section-kicker">
+            SEUS TIMES E JOGOS
+          </span>
+
+          <h1>Favoritos</h1>
+        </div>
+
+        <Heart size={27} />
+      </div>
+
+      {favoriteMatches.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">
+            <Heart size={34} />
+          </div>
+
+          <h2>Nenhum favorito ainda</h2>
+
+          <p>
+            Toque no coração de uma partida para ela
+            aparecer aqui.
+          </p>
+        </div>
+      ) : (
+        <div className="competition-matches">
+          {favoriteMatches.map((match, index) => (
+            <MatchCard
+              key={`fav-${getMatchId(match)}-${index}`}
+              match={match}
+              favorites={favorites}
+              onToggleFavorite={onToggleFavorite}
+              onOpen={onOpenMatch}
+            />
+          ))}
+        </div>
+      )}
+    </main>
+  );
+}
+
+// ======================================================
+// RÁDIOS
+// ======================================================
+
+function RadiosScreen({ radios, loading }) {
+  const [search, setSearch] = useState("");
+
+  const filtered = radios.filter((radio) => {
+    const text = normalizeText(
+      `${radio?.name || ""} ${radio?.state || ""} ${radio?.city || ""}`
+    ).toLowerCase();
+
+    return text.includes(normalizeText(search).toLowerCase());
+  });
+
+  const grouped = useMemo(() => {
+    const map = new Map();
+
+    for (const radio of filtered) {
+      const state =
+        firstValue(
+          radio?.state,
+          radio?.uf,
+          radio?.region,
+          "OUTRAS"
+        ) || "OUTRAS";
+
+      if (!map.has(state)) {
+        map.set(state, []);
+      }
+
+      map.get(state).push(radio);
+    }
+
+    return Array.from(map.entries());
+  }, [filtered]);
+
+  return (
+    <main className="screen radios-screen">
+      <div className="screen-title">
+        <div>
+          <span className="section-kicker">
+            FUTEBOL NO RÁDIO
+          </span>
+
+          <h1>Rádios</h1>
+        </div>
+
+        <Radio size={27} />
+      </div>
+
+      <div className="search-box">
+        <Search size={19} />
+
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar rádio ou estado..."
+        />
+      </div>
+
+      {loading ? (
+        <div className="loading-card">
+          Carregando rádios...
+        </div>
+      ) : grouped.length === 0 ? (
+        <div className="empty-card">
+          Nenhuma rádio encontrada.
+        </div>
+      ) : (
+        grouped.map(([state, stateRadios]) => (
+          <section
+            className="radio-state-section"
+            key={state}
+          >
+            <div className="radio-state-title">
+              <span>{state}</span>
+              <small>{stateRadios.length}</small>
+            </div>
+
+            <div className="radio-list">
+              {stateRadios.map((radio) => {
+                const stream =
+                  radio?.stream_verified === true &&
+                  radio?.stream
+                    ? radio.stream
+                    : null;
+
+                return (
+                  <article
+                    className="radio-card"
+                    key={radio.id}
+                  >
+                    <div className="radio-icon">
+                      <Radio size={22} />
+                    </div>
+
+                    <div className="radio-info">
+                      <strong>{radio.name}</strong>
+
+                      <span>
+                        {firstValue(
+                          radio.city,
+                          radio.state,
+                          "Rádio esportiva"
+                        )}
+                      </span>
+                    </div>
+
+                    {stream ? (
+                      <a
+                        className="radio-play"
+                        href={stream}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`Ouvir ${radio.name}`}
+                      >
+                        <Play size={19} fill="currentColor" />
+                      </a>
+                    ) : (
+                      <div
+                        className="radio-play disabled"
+                        title="Stream ainda não verificada"
+                      >
+                        <Radio size={18} />
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ))
+      )}
+    </main>
+  );
+}
+
+// ======================================================
+// DETALHE DA PARTIDA
+// ======================================================
+
+function MatchDetail({
+  match,
+  onBack,
+  favorites,
+  onToggleFavorite,
+}) {
+  if (!match) return null;
+
+  const homeName = getHomeName(match);
+  const awayName = getAwayName(match);
+
+  const radios = getRadios(match);
+
+  return (
+    <main className="screen detail-screen">
+      <div className="detail-top">
+        <button className="back-button" onClick={onBack}>
+          <ArrowLeft size={22} />
+        </button>
+
+        <div>
+          <small>{getLeagueName(match)}</small>
+          <strong>DETALHES DA PARTIDA</strong>
+        </div>
+
+        <FavoriteButton
+          matchId={getMatchId(match)}
+          favorites={favorites}
+          onToggle={onToggleFavorite}
+        />
+      </div>
+
+      <section className="detail-scoreboard">
+        <div className="detail-team">
+          <TeamBadge
+            name={homeName}
+            logo={getHomeLogo(match)}
+            size="xlarge"
+          />
+
+          <strong>{abbreviation(homeName)}</strong>
+          <span>{homeName}</span>
+        </div>
+
+        <div className="detail-score">
+          {hasScore(match) ? (
+            <strong>
+              {getHomeScore(match)}
+              <span>×</span>
+              {getAwayScore(match)}
+            </strong>
+          ) : (
+            <strong>{formatTime(match)}</strong>
+          )}
+
+          <div
+            className={
+              isLive(match)
+                ? "detail-status live"
+                : "detail-status"
+            }
+          >
+            {isLive(match) && <span className="mini-live-dot" />}
+            {matchStatus(match)}
+          </div>
+        </div>
+
+        <div className="detail-team">
+          <TeamBadge
+            name={awayName}
+            logo={getAwayLogo(match)}
+            size="xlarge"
+          />
+
+          <strong>{abbreviation(awayName)}</strong>
+          <span>{awayName}</span>
+        </div>
+      </section>
+
+      <section className="detail-section">
+        <div className="detail-section-title">
+          <Radio size={20} />
+
+          <div>
+            <small>AO VIVO</small>
+            <h2>Rádios transmitindo</h2>
+          </div>
+        </div>
+
+        {radios.length === 0 ? (
+          <div className="empty-card">
+            Nenhuma rádio confirmada para esta partida.
+          </div>
+        ) : (
+          <div className="radio-list">
+            {radios.map((radio) => {
+              const canPlay =
+                radio?.stream_verified === true &&
+                Boolean(radio?.stream);
+
+              return (
+                <article
+                  className="radio-card match-radio-card"
+                  key={radio.id}
+                >
+                  <div className="radio-icon">
+                    <Radio size={22} />
+                  </div>
+
+                  <div className="radio-info">
+                    <strong>{radio.name}</strong>
+
+                    <span>
+                      Transmissão confirmada
+                    </span>
+                  </div>
+
+                  {canPlay ? (
+                    <a
+                      className="radio-play"
+                      href={radio.stream}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <Play size={19} fill="currentColor" />
+                    </a>
+                  ) : (
+                    <div className="radio-confirmed-badge">
+                      CONFIRMADA
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="detail-section">
+        <div className="detail-section-title">
+          <Clock3 size={20} />
+
+          <div>
+            <small>PARTIDA</small>
+            <h2>Linha do tempo</h2>
+          </div>
+        </div>
+
+        <div className="timeline-placeholder">
+          <div className="timeline-line" />
+
+          <div>
+            <strong>{matchStatus(match)}</strong>
+
+            <span>
+              Os eventos da partida aparecerão aqui
+              quando estiverem disponíveis na BSD.
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <div className="detail-slogan">
+        <strong>RADIOPLACAR</strong>
+        <span>O futebol passa. A emoção fica.</span>
+      </div>
+    </main>
+  );
+}
+
+// ======================================================
+// CAMPEONATO
+// ======================================================
+
+function CompetitionScreen({
+  competition,
+  matches,
+  favorites,
+  onToggleFavorite,
+  onOpenMatch,
+  onBack,
+}) {
+  const [tab, setTab] = useState("matches");
+
+  const competitionMatches = matches.filter(
+    (match) =>
+      getLeagueId(match) === String(competition?.id) ||
+      getLeagueName(match) === competition?.name
+  );
+
+  return (
+    <main className="screen competition-detail-screen">
+      <div className="detail-top">
+        <button className="back-button" onClick={onBack}>
+          <ArrowLeft size={22} />
+        </button>
+
+        <div>
+          <small>CAMPEONATO</small>
+          <strong>{competition?.name}</strong>
+        </div>
+
+        <Trophy size={23} />
+      </div>
+
+      <div className="competition-tabs">
+        <button
+          className={tab === "matches" ? "active" : ""}
+          onClick={() => setTab("matches")}
+        >
+          PARTIDAS
+        </button>
+
+        <button
+          className={tab === "standings" ? "active" : ""}
+          onClick={() => setTab("standings")}
+        >
+          CLASSIFICAÇÃO
+        </button>
+      </div>
+
+      {tab === "matches" ? (
+        <div className="competition-matches">
+          {competitionMatches.map((match, index) => (
+            <MatchCard
+              key={`competition-${getMatchId(match)}-${index}`}
+              match={match}
+              favorites={favorites}
+              onToggleFavorite={onToggleFavorite}
+              onOpen={onOpenMatch}
+            />
+          ))}
+        </div>
+      ) : (
+        <StandingsPlaceholder
+          competition={competition}
+        />
+      )}
+    </main>
+  );
+}
+
+// ======================================================
+// CLASSIFICAÇÃO
+// ======================================================
+//
+// IMPORTANTE:
+// NÃO colocamos tabela fictícia.
+// Aqui já fica o visual preparado.
+// Quando ligarmos o endpoint real de classificação
+// da BSD, os clubes entram com escudo ou 3 letras.
+// ======================================================
+
+function StandingsPlaceholder({ competition }) {
+  return (
+    <section className="standings-section">
+      <div className="standings-header">
+        <div>
+          <span className="section-kicker">
+            TABELA
+          </span>
+
+          <h2>{competition?.name}</h2>
+        </div>
+
+        <Trophy size={25} />
+      </div>
+
+      <div className="standings-table-head">
+        <span>#</span>
+        <span>TIME</span>
+        <span>J</span>
+        <span>V</span>
+        <span>E</span>
+        <span>D</span>
+        <span>SG</span>
+        <strong>PTS</strong>
+      </div>
+
+      <div className="standings-empty">
+        <Trophy size={32} />
+
+        <strong>Classificação real</strong>
+
+        <p>
+          Esta área já está pronta. Vamos preencher
+          somente com a classificação oficial disponível
+          na fonte de dados, sem inventar posições ou pontos.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// ======================================================
+// NAVEGAÇÃO INFERIOR
+// ======================================================
+
+function BottomNavigation({
+  active,
+  onChange,
+}) {
+  const items = [
+    {
+      id: "home",
+      label: "INÍCIO",
+      icon: Home,
+    },
+    {
+      id: "games",
+      label: "JOGOS",
+      icon: Trophy,
+    },
+    {
+      id: "favorites",
+      label: "FAVORITOS",
+      icon: Heart,
+    },
+    {
+      id: "radios",
+      label: "RÁDIOS",
+      icon: Radio,
+    },
+  ];
+
+  return (
+    <nav className="bottom-navigation">
+      {items.map((item) => {
+        const Icon = item.icon;
+        const selected = active === item.id;
+
+        return (
+          <button
+            key={item.id}
+            className={selected ? "active" : ""}
+            onClick={() => onChange(item.id)}
+          >
+            <Icon
+              size={22}
+              fill={
+                item.id === "favorites" && selected
+                  ? "currentColor"
+                  : "none"
+              }
+            />
+
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ======================================================
+// APP
+// ======================================================
+
+function App() {
+  const [activeTab, setActiveTab] = useState("home");
+
+  const [matches, setMatches] = useState([]);
+  const [radios, setRadios] = useState([]);
+
+  const [loadingMatches, setLoadingMatches] = useState(true);
+  const [loadingRadios, setLoadingRadios] = useState(true);
+
+  const [selectedDate, setSelectedDate] = useState(todayISO());
+
+  const [selectedMatch, setSelectedMatch] = useState(null);
+  const [selectedCompetition, setSelectedCompetition] = useState(null);
+
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      const saved = localStorage.getItem("radioplacar-favorites");
+
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // ====================================================
+  // PARTIDAS
+  // ====================================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMatches() {
+      setLoadingMatches(true);
+
+      try {
+        const response = await fetch(
+          `${API_URL}/api/matches?date=${encodeURIComponent(selectedDate)}`
+        );
+
+        const data = await response.json();
+
+        if (cancelled) return;
+
+        if (data?.ok && Array.isArray(data?.response)) {
+          setMatches(data.response);
+        } else {
+          setMatches([]);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar partidas:", error);
+
+        if (!cancelled) {
+          setMatches([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingMatches(false);
+        }
+      }
+    }
+
+    loadMatches();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
+
+  // ====================================================
+  // RÁDIOS
+  // ====================================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRadios() {
+      setLoadingRadios(true);
+
+      try {
+        const response = await fetch(`${API_URL}/api/radios`);
+        const data = await response.json();
+
+        if (cancelled) return;
+
+        if (data?.ok && Array.isArray(data?.response)) {
+          setRadios(data.response);
+        } else {
+          setRadios([]);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar rádios:", error);
+
+        if (!cancelled) {
+          setRadios([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingRadios(false);
+        }
+      }
+    }
+
+    loadRadios();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ====================================================
+  // FAVORITOS
+  // ====================================================
+
+  function toggleFavorite(matchId) {
+    const id = String(matchId);
+
+    setFavorites((current) => {
+      const next = current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id];
+
+      localStorage.setItem(
+        "radioplacar-favorites",
+        JSON.stringify(next)
+      );
+
+      return next;
+    });
+  }
+
+  // ====================================================
+  // ABRIR PARTIDA
+  // ====================================================
+
+  async function openMatch(match) {
+    setSelectedCompetition(null);
+    setSelectedMatch(match);
+
+    const id = getMatchId(match);
+
+    if (!id) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/fixture/${encodeURIComponent(id)}`
+      );
+
+      const data = await response.json();
+
+      if (data?.ok && data?.response) {
+        setSelectedMatch(data.response);
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar partida:", error);
+    }
+  }
+
+  function openCompetition(competition) {
+    setSelectedMatch(null);
+    setSelectedCompetition(competition);
+  }
+
+  function closeDetails() {
+    setSelectedMatch(null);
+    setSelectedCompetition(null);
+  }
+
+  function changeMainTab(tab) {
+    setSelectedMatch(null);
+    setSelectedCompetition(null);
+    setActiveTab(tab);
+  }
+
+  // ====================================================
+  // CONTEÚDO
+  // ====================================================
+
+  function renderContent() {
+    if (selectedMatch) {
+      return (
+        <MatchDetail
+          match={selectedMatch}
+          onBack={closeDetails}
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
+        />
+      );
+    }
+
+    if (selectedCompetition) {
+      return (
+        <CompetitionScreen
+          competition={selectedCompetition}
+          matches={matches}
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
+          onOpenMatch={openMatch}
+          onBack={closeDetails}
+        />
+      );
+    }
+
+    if (activeTab === "home") {
+      return (
+        <HomeScreen
+          matches={matches}
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
+          onOpenMatch={openMatch}
+          onOpenCompetition={openCompetition}
+          loading={loadingMatches}
+        />
+      );
+    }
+
+    if (activeTab === "games") {
+      return (
+        <GamesScreen
+          matches={matches}
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
+          onOpenMatch={openMatch}
+          onOpenCompetition={openCompetition}
+          loading={loadingMatches}
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+        />
+      );
+    }
+
+    if (activeTab === "favorites") {
+      return (
+        <FavoritesScreen
+          matches={matches}
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
+          onOpenMatch={openMatch}
+        />
+      );
+    }
+
+    return (
+      <RadiosScreen
+        radios={radios}
+        loading={loadingRadios}
+      />
+    );
+  }
+
+  return (
+    <div className="app-shell">
+      <Header />
+
+      <div className="app-content">
+        {renderContent()}
+      </div>
+
+      {!selectedMatch && !selectedCompetition && (
+        <BottomNavigation
+          active={activeTab}
+          onChange={changeMainTab}
+        />
+      )}
+    </div>
+  );
+}
+
+// ======================================================
+// START
+// ======================================================
+
+createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
