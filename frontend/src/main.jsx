@@ -2343,8 +2343,8 @@ function StandingsPlaceholder({ competition }) {
               getZoneClass(zone);
 
             const logo = teamId
-              ? `${API_URL}/api/logo/team/${teamId}`
-              : null;
+  ? `${API_URL}/api/team-logo/${encodeURIComponent(teamId)}`
+  : null;
 
             return (
               <div
