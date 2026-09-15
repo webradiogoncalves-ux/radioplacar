@@ -1251,14 +1251,33 @@ function MatchDetail({
 
   const radios = getRadios(match);
 
+  const live = isLive(match);
+  const finished = isFinished(match);
+
+  const clock = live
+    ? formatClock(match) || "00:00"
+    : finished
+    ? formatClock(match) || "--:--"
+    : "00:00";
+
+  const statusText = live
+    ? "AO VIVO"
+    : finished
+    ? "ENCERRADO"
+    : "AGENDADO";
+
   return (
-    <main className="screen detail-screen">
-      <div className="detail-top">
-        <button className="back-button" onClick={onBack}>
+    <main className="screen detail-screen rpf-detail-screen">
+      <div className="detail-top rpf-detail-top">
+        <button
+          className="back-button"
+          onClick={onBack}
+          aria-label="Voltar"
+        >
           <ArrowLeft size={22} />
         </button>
 
-        <div>
+        <div className="rpf-detail-heading">
           <small>{getLeagueName(match)}</small>
           <strong>DETALHES DA PARTIDA</strong>
         </div>
@@ -1270,66 +1289,127 @@ function MatchDetail({
         />
       </div>
 
-      <section className="detail-scoreboard">
-        <div className="detail-team">
-          <TeamBadge
-            name={homeName}
-            logo={getHomeLogo(match)}
-            size="xlarge"
-          />
+      <section
+        className={`rpf-detail-scoreboard ${
+          live ? "is-live" : ""
+        }`}
+      >
+        <div className="rpf-detail-clock">
+          <strong>{clock}</strong>
 
-          <strong>{abbreviation(homeName)}</strong>
-          <span>{homeName}</span>
+          <span
+            className={`rpf-detail-status ${
+              live
+                ? "live"
+                : finished
+                ? "finished"
+                : "scheduled"
+            }`}
+          >
+            {live && <span className="mini-live-dot" />}
+            {statusText}
+          </span>
+
+          {!live && !finished && (
+            <small>
+              Início previsto: {formatTime(match)}
+            </small>
+          )}
         </div>
 
-        <div className="detail-score">
-          {hasScore(match) ? (
-            <strong>
-              {getHomeScore(match)}
-              <span>×</span>
-              {getAwayScore(match)}
-            </strong>
-          ) : (
-            <strong>{formatTime(match)}</strong>
-          )}
+        <div className="rpf-detail-teams">
+          <div className="rpf-detail-team">
+            <TeamBadge
+              name={homeName}
+              logo={getHomeLogo(match)}
+              size="xlarge"
+            />
 
-          <div
-            className={
-              isLive(match)
-                ? "detail-status live"
-                : "detail-status"
-            }
-          >
-            {isLive(match) && <span className="mini-live-dot" />}
-            {matchStatus(match)}
+            <strong className="rpf-detail-team-code">
+              {abbreviation(homeName)}
+            </strong>
+
+            <span className="rpf-detail-team-name">
+              {homeName}
+            </span>
+          </div>
+
+          <div className="rpf-detail-score">
+            {hasScore(match) ? (
+              <>
+                <strong>
+                  <span>{getHomeScore(match)}</span>
+                  <small>−</small>
+                  <span>{getAwayScore(match)}</span>
+                </strong>
+
+                <span className="rpf-detail-score-label">
+                  PLACAR
+                </span>
+              </>
+            ) : (
+              <>
+                <strong className="pregame">
+                  <span>0</span>
+                  <small>−</small>
+                  <span>0</span>
+                </strong>
+
+                <span className="rpf-detail-score-label">
+                  PRÉ-JOGO
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="rpf-detail-team">
+            <TeamBadge
+              name={awayName}
+              logo={getAwayLogo(match)}
+              size="xlarge"
+            />
+
+            <strong className="rpf-detail-team-code">
+              {abbreviation(awayName)}
+            </strong>
+
+            <span className="rpf-detail-team-name">
+              {awayName}
+            </span>
           </div>
         </div>
 
-        <div className="detail-team">
-          <TeamBadge
-            name={awayName}
-            logo={getAwayLogo(match)}
-            size="xlarge"
-          />
+        <div className="rpf-detail-competition">
+          <LeagueBadge match={match} />
 
-          <strong>{abbreviation(awayName)}</strong>
-          <span>{awayName}</span>
+          <span>{getLeagueName(match)}</span>
         </div>
       </section>
 
-      <section className="detail-section">
-        <div className="detail-section-title">
-          <Radio size={20} />
+      <section className="detail-section rpf-detail-section">
+        <div className="detail-section-title rpf-section-title">
+          <div className="rpf-section-icon">
+            <Radio size={20} />
+          </div>
 
           <div>
-            <small>AO VIVO</small>
+            <small>RPF NO JOGO</small>
             <h2>Rádios transmitindo</h2>
           </div>
         </div>
 
         {radios.length === 0 ? (
-          <div className="empty-card">
-            Nenhuma rádio confirmada para esta partida.
+          <div className="empty-card rpf-empty-radio">
+            <Radio size={22} />
+
+            <div>
+              <strong>Sem rádio confirmada</strong>
+
+              <span>
+                A partida continua disponível com placar e
+                informações em tempo real.
+              </span>
+            </div>
           </div>
         ) : (
           <div className="radio-list">
@@ -1350,9 +1430,7 @@ function MatchDetail({
                   <div className="radio-info">
                     <strong>{radio.name}</strong>
 
-                    <span>
-                      Transmissão confirmada
-                    </span>
+                    <span>Transmissão confirmada</span>
                   </div>
 
                   {canPlay ? (
@@ -1361,8 +1439,15 @@ function MatchDetail({
                       href={radio.stream}
                       target="_blank"
                       rel="noreferrer"
+                      onClick={(event) =>
+                        event.stopPropagation()
+                      }
+                      aria-label={`Ouvir ${radio.name}`}
                     >
-                      <Play size={19} fill="currentColor" />
+                      <Play
+                        size={19}
+                        fill="currentColor"
+                      />
                     </a>
                   ) : (
                     <div className="radio-confirmed-badge">
@@ -1376,9 +1461,11 @@ function MatchDetail({
         )}
       </section>
 
-      <section className="detail-section">
-        <div className="detail-section-title">
-          <Clock3 size={20} />
+      <section className="detail-section rpf-detail-section">
+        <div className="detail-section-title rpf-section-title">
+          <div className="rpf-section-icon">
+            <Clock3 size={20} />
+          </div>
 
           <div>
             <small>PARTIDA</small>
@@ -1386,28 +1473,38 @@ function MatchDetail({
           </div>
         </div>
 
-        <div className="timeline-placeholder">
-          <div className="timeline-line" />
+        <div className="rpf-timeline">
+          <div className="rpf-timeline-marker">
+            <span />
+          </div>
 
-          <div>
-            <strong>{matchStatus(match)}</strong>
+          <div className="rpf-timeline-content">
+            <strong>
+              {live
+                ? clock
+                : finished
+                ? statusText
+                : formatTime(match)}
+            </strong>
 
             <span>
-              Os eventos da partida aparecerão aqui
-              quando estiverem disponíveis na BSD.
+              Os eventos da partida aparecerão aqui quando
+              estiverem disponíveis na BSD.
             </span>
           </div>
         </div>
       </section>
 
-      <div className="detail-slogan">
-        <strong>RADIOPLACAR</strong>
-        <span>O futebol passa. A emoção fica.</span>
+      <div className="detail-slogan rpf-detail-slogan">
+        <strong>
+          <span>RPF</span> PLACAR
+        </strong>
+
+        <small>O futebol passa. A emoção fica.</small>
       </div>
     </main>
   );
 }
-
 // ======================================================
 // CAMPEONATO
 // ======================================================
