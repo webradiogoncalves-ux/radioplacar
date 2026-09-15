@@ -1,1838 +1,1473 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { createRoot } from "react-dom/client";
+// backend/server.js
+
+import express from "express";
+import cors from "cors";
+
 import {
-  Home,
-  Trophy,
-  Heart,
-  Radio,
-  Search,
-  ChevronRight,
-  ChevronLeft,
-  CalendarDays,
-  Clock3,
-  Star,
-  Play,
-  ArrowLeft,
-  Wifi,
-} from "lucide-react";
+  getRadios,
+  getRadio,
+  getRadiosForMatch,
+  attachRadioToMatch,
+  detachRadioFromMatch,
+  clearMatchRadios,
+  getRadioStats,
+} from "./radios.js";
 
-import "../styles.css";
+import {
+  collectTransmissions,
+  getRadioCollectorInfo,
+} from "./radio-collector.js";
 
-const API_URL = "https://radioplacar-api.onrender.com";
+import {
+  mapTransmissions,
+} from "./radio-mapper.js";
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT || 3001;
 
 // ======================================================
-// HELPERS
+// BSD - BZZOIRO SPORTS DATA
 // ======================================================
 
-function firstValue(...values) {
-  for (const value of values) {
-    if (value !== undefined && value !== null && value !== "") {
-      return value;
-    }
-  }
+const API_BASE =
+  "https://sports.bzzoiro.com/api/v2";
 
-  return null;
-}
+// IMPORTANTE:
+// as imagens da BSD ficam fora de /api/v2.
+const IMAGE_BASE =
+  "https://sports.bzzoiro.com";
 
-function normalizeText(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-}
+const API_KEY =
+  process.env.API_FOOTBALL_KEY;
 
-function abbreviation(name) {
-  const clean = normalizeText(name)
-    .replace(/[^a-zA-Z0-9 ]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+const PUBLIC_API_URL =
+  process.env.PUBLIC_API_URL ||
+  "https://radioplacar-api.onrender.com";
 
-  if (!clean) return "---";
+const cache = new Map();
 
-  const ignore = [
-    "FC",
-    "EC",
-    "SC",
-    "AC",
-    "CF",
-    "CLUB",
-    "CLUBE",
-    "DE",
-    "DA",
-    "DO",
-    "DOS",
-    "DAS",
-  ];
+// ======================================================
+// CACHE
+// ======================================================
 
-  const words = clean
-    .split(" ")
-    .filter(Boolean)
-    .filter((word) => !ignore.includes(word.toUpperCase()));
+function cacheGet(key) {
+  const item = cache.get(key);
 
-  if (!words.length) {
-    return clean.slice(0, 3).toUpperCase();
-  }
-
-  if (words.length === 1) {
-    return words[0].slice(0, 3).toUpperCase();
-  }
-
-  if (words.length === 2) {
-    return (
-      words[0].slice(0, 1) +
-      words[1].slice(0, 2)
-    ).toUpperCase();
-  }
-
-  return words
-    .slice(0, 3)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-}
-
-function getMatchId(match) {
-  return String(
-    firstValue(
-      match?.id,
-      match?.fixture_id,
-      match?.event_id,
-      match?.game_id,
-      ""
-    )
-  );
-}
-
-function getHomeName(match) {
-  return String(
-    firstValue(
-      match?.home_team?.name,
-      match?.home_team,
-      match?.home?.name,
-      match?.home,
-      match?.mandante?.name,
-      match?.mandante,
-      "Mandante"
-    )
-  );
-}
-
-function getAwayName(match) {
-  return String(
-    firstValue(
-      match?.away_team?.name,
-      match?.away_team,
-      match?.away?.name,
-      match?.away,
-      match?.visitante?.name,
-      match?.visitante,
-      "Visitante"
-    )
-  );
-}
-
-function getHomeLogo(match) {
-  return firstValue(
-    match?.home_team_logo,
-    match?.home_logo,
-    match?.home_team?.logo,
-    match?.home_team?.image,
-    match?.home?.logo,
-    match?.home?.image,
-    match?.mandante?.logo
-  );
-}
-
-function getAwayLogo(match) {
-  return firstValue(
-    match?.away_team_logo,
-    match?.away_logo,
-    match?.away_team?.logo,
-    match?.away_team?.image,
-    match?.away?.logo,
-    match?.away?.image,
-    match?.visitante?.logo
-  );
-}
-
-function getLeagueName(match) {
-  return String(
-    firstValue(
-      match?.league?.name,
-      match?.league_name,
-      match?.league,
-      match?.competition?.name,
-      match?.competition,
-      match?.campeonato?.nome,
-      match?.campeonato,
-      "Campeonato"
-    )
-  );
-}
-
-function getLeagueId(match) {
-  return String(
-    firstValue(
-      match?.league_id,
-      match?.league?.id,
-      match?.competition_id,
-      match?.competition?.id,
-      getLeagueName(match)
-    )
-  );
-}
-
-function getLeagueLogo(match) {
-  return firstValue(
-    match?.league_logo,
-    match?.league?.logo,
-    match?.league?.image,
-    match?.competition?.logo,
-    match?.competition?.image
-  );
-}
-
-function getHomeScore(match) {
-  return firstValue(
-    match?.home_score,
-    match?.score_home,
-    match?.home_goals,
-    match?.goals?.home,
-    match?.score?.home,
-    match?.home?.score,
-    match?.home_team?.score
-  );
-}
-
-function getAwayScore(match) {
-  return firstValue(
-    match?.away_score,
-    match?.score_away,
-    match?.away_goals,
-    match?.goals?.away,
-    match?.score?.away,
-    match?.away?.score,
-    match?.away_team?.score
-  );
-}
-
-function getRawStatus(match) {
-  return String(
-    firstValue(
-      match?.status?.short,
-      match?.status?.long,
-      match?.status,
-      match?.state,
-      match?.match_status,
-      ""
-    )
-  ).toLowerCase();
-}
-
-function isLive(match) {
-  const status = getRawStatus(match);
-
-  return (
-    status.includes("live") ||
-    status.includes("progress") ||
-    status.includes("1st") ||
-    status.includes("2nd") ||
-    status.includes("half") ||
-    status.includes("playing")
-  );
-}
-
-function isFinished(match) {
-  const status = getRawStatus(match);
-
-  return (
-    status.includes("finished") ||
-    status.includes("full") ||
-    status === "ft" ||
-    status.includes("ended") ||
-    status.includes("final")
-  );
-}
-
-function getMinute(match) {
-  return firstValue(
-    match?.minute,
-    match?.elapsed,
-    match?.status?.elapsed,
-    match?.time?.minute
-  );
-}
-
-function formatClock(match) {
-  const minute = Number(getMinute(match));
-
-  if (!Number.isFinite(minute)) {
+  if (!item) {
     return null;
   }
 
-  return `${String(minute).padStart(2, "0")}:00`;
+  if (Date.now() > item.expires) {
+    cache.delete(key);
+    return null;
+  }
+
+  return item.data;
 }
 
-function getMatchDate(match) {
-  return firstValue(
-    match?.date,
-    match?.start_date,
-    match?.datetime,
-    match?.start_time,
-    match?.fixture?.date
+function cacheSet(key, data, ttlMs) {
+  cache.set(key, {
+    data,
+    expires: Date.now() + ttlMs,
+  });
+
+  return data;
+}
+
+// ======================================================
+// DATA DO BRASIL
+// ======================================================
+
+function brasilDate() {
+  return new Intl.DateTimeFormat(
+    "en-CA",
+    {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }
+  ).format(new Date());
+}
+
+// ======================================================
+// ESCUDOS / IMAGENS BSD
+// ======================================================
+
+function getTeamLogo(teamId) {
+  if (
+    teamId === null ||
+    teamId === undefined ||
+    teamId === ""
+  ) {
+    return null;
+  }
+
+  return (
+    `${PUBLIC_API_URL}/api/team-logo/` +
+    `${encodeURIComponent(teamId)}`
   );
 }
 
-function formatTime(match) {
-  const raw = getMatchDate(match);
+function getLeagueLogo(leagueId) {
+  if (
+    leagueId === null ||
+    leagueId === undefined ||
+    leagueId === ""
+  ) {
+    return null;
+  }
 
-  if (!raw) return "--:--";
+  return (
+    `${PUBLIC_API_URL}/api/league-logo/` +
+    `${encodeURIComponent(leagueId)}`
+  );
+}
+
+// ======================================================
+// ENRIQUECER PARTIDA
+// ======================================================
+
+function enrichMatch(match) {
+  if (!match || typeof match !== "object") {
+    return match;
+  }
+
+  const matchId =
+    match.id ??
+    match.fixture_id ??
+    match.event_id ??
+    null;
+
+  return {
+    ...match,
+
+    home_team_logo:
+      getTeamLogo(
+        match.home_team_id
+      ),
+
+    away_team_logo:
+      getTeamLogo(
+        match.away_team_id
+      ),
+
+    league_logo:
+      getLeagueLogo(
+        match.league_id
+      ),
+
+    radios:
+      matchId !== null
+        ? getRadiosForMatch(
+            String(matchId)
+          )
+        : [],
+  };
+}
+
+function enrichMatches(matches) {
+  if (!Array.isArray(matches)) {
+    return [];
+  }
+
+  return matches.map(enrichMatch);
+}
+
+// ======================================================
+// REQUISIÇÃO BSD
+// ======================================================
+
+async function apiRequest(pathOrUrl) {
+  if (!API_KEY) {
+    const error = new Error(
+      "API_FOOTBALL_KEY não configurada no Render"
+    );
+
+    error.status = 500;
+
+    throw error;
+  }
+
+  const url =
+    pathOrUrl.startsWith("http")
+      ? pathOrUrl
+      : `${API_BASE}${pathOrUrl}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization:
+        `Token ${API_KEY}`,
+
+      Accept:
+        "application/json",
+    },
+  });
+
+  const text =
+    await response.text();
+
+  let data;
 
   try {
-    const date = new Date(raw);
-
-    if (Number.isNaN(date.getTime())) {
-      const found = String(raw).match(/\b(\d{1,2}):(\d{2})\b/);
-
-      if (found) {
-        return `${found[1].padStart(2, "0")}:${found[2]}`;
-      }
-
-      return "--:--";
-    }
-
-    return new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Sao_Paulo",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(date);
+    data = JSON.parse(text);
   } catch {
-    return "--:--";
-  }
-}
-
-function matchStatus(match) {
-  if (isLive(match)) {
-    return formatClock(match) || "AO VIVO";
+    data = {
+      raw: text,
+    };
   }
 
-  if (isFinished(match)) {
-    return "ENCERRADO";
-  }
-
-  return "AGENDADO";
-}
-
-function hasScore(match) {
-  return (
-    getHomeScore(match) !== null &&
-    getAwayScore(match) !== null
-  );
-}
-
-function getRadios(match) {
-  return Array.isArray(match?.radios)
-    ? match.radios.filter((radio) => radio?.match_confirmed === true)
-    : [];
-}
-
-function todayISO(offset = 0) {
-  const now = new Date();
-
-  const brasil = new Date(
-    now.toLocaleString("en-US", {
-      timeZone: "America/Sao_Paulo",
-    })
-  );
-
-  brasil.setDate(brasil.getDate() + offset);
-
-  const year = brasil.getFullYear();
-  const month = String(brasil.getMonth() + 1).padStart(2, "0");
-  const day = String(brasil.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
-// ======================================================
-// ESCUDO / 3 LETRAS
-// ======================================================
-
-function TeamBadge({
-  name,
-  logo,
-  size = "normal",
-}) {
-  const [failed, setFailed] = useState(false);
-
-  if (logo && !failed) {
-    return (
-      <div className={`team-badge team-badge-${size}`}>
-        <img
-          src={logo}
-          alt={name}
-          loading="lazy"
-          onError={() => setFailed(true)}
-        />
-      </div>
+  if (!response.ok) {
+    const error = new Error(
+      `BSD respondeu ${response.status}`
     );
+
+    error.status =
+      response.status;
+
+    error.data =
+      data;
+
+    throw error;
   }
 
-  return (
-    <div
-      className={`team-badge team-badge-${size} team-badge-fallback`}
-      title={name}
-    >
-      {abbreviation(name)}
-    </div>
-  );
-}
-
-function LeagueBadge({ match }) {
-  const logo = getLeagueLogo(match);
-  const name = getLeagueName(match);
-
-  const [failed, setFailed] = useState(false);
-
-  if (logo && !failed) {
-    return (
-      <div className="league-badge">
-        <img
-          src={logo}
-          alt={name}
-          onError={() => setFailed(true)}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="league-badge league-badge-fallback">
-      <Trophy size={16} />
-    </div>
-  );
+  return data;
 }
 
 // ======================================================
-// CABEÇALHO
+// PAGINAÇÃO BSD
 // ======================================================
 
-function Header() {
-  return (
-    <header className="topbar">
-      <div className="brand">
-        <div className="brand-ball">⚽</div>
+async function getPaginated(
+  path,
+  maxPages = 20
+) {
+  let next = path;
 
-        <div>
-          <strong>RADIOPLACAR</strong>
-          <span>FUTEBOL & RÁDIO AO VIVO</span>
-        </div>
-      </div>
+  const results = [];
 
-      <div className="live-dot-wrap">
-        <span className="live-dot" />
-        AO VIVO
-      </div>
-    </header>
-  );
-}
+  let page = 0;
 
-// ======================================================
-// BOTÃO FAVORITO
-// ======================================================
+  while (
+    next &&
+    page < maxPages
+  ) {
+    const data =
+      await apiRequest(next);
 
-function FavoriteButton({
-  matchId,
-  favorites,
-  onToggle,
-}) {
-  const active = favorites.includes(String(matchId));
-
-  return (
-    <button
-      className={`favorite-button ${active ? "active" : ""}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        onToggle(matchId);
-      }}
-      aria-label="Favoritar"
-    >
-      <Heart
-        size={19}
-        fill={active ? "currentColor" : "none"}
-      />
-    </button>
-  );
-}
-
-// ======================================================
-// CARD DE PARTIDA
-// ======================================================
-
-function MatchCard({
-  match,
-  favorites,
-  onToggleFavorite,
-  onOpen,
-}) {
-  const id = getMatchId(match);
-
-  const homeName = getHomeName(match);
-  const awayName = getAwayName(match);
-
-  const live = isLive(match);
-  const finished = isFinished(match);
-
-  const homeScore = getHomeScore(match);
-  const awayScore = getAwayScore(match);
-
-  const radios = getRadios(match);
-
-  return (
-    <article
-      className={`match-card ${live ? "match-live" : ""}`}
-      onClick={() => onOpen(match)}
-    >
-      <div className="match-card-top">
-        <div
-          className={
-            live
-              ? "match-status status-live"
-              : finished
-              ? "match-status status-finished"
-              : "match-status status-scheduled"
-          }
-        >
-          {live && <span className="mini-live-dot" />}
-          {matchStatus(match)}
-        </div>
-
-        <FavoriteButton
-          matchId={id}
-          favorites={favorites}
-          onToggle={onToggleFavorite}
-        />
-      </div>
-
-      <div className="match-main">
-        <div className="match-team">
-          <TeamBadge
-            name={homeName}
-            logo={getHomeLogo(match)}
-          />
-
-          <strong>{abbreviation(homeName)}</strong>
-          <span>{homeName}</span>
-        </div>
-
-        <div className="match-score">
-          {hasScore(match) ? (
-            <>
-              <strong>
-                {homeScore}
-                <span>×</span>
-                {awayScore}
-              </strong>
-
-              {live && (
-                <small>{formatClock(match) || "AO VIVO"}</small>
-              )}
-            </>
-          ) : (
-            <>
-              <strong className="match-time">
-                {formatTime(match)}
-              </strong>
-
-              <small>AGENDADO</small>
-            </>
-          )}
-        </div>
-
-        <div className="match-team">
-          <TeamBadge
-            name={awayName}
-            logo={getAwayLogo(match)}
-          />
-
-          <strong>{abbreviation(awayName)}</strong>
-          <span>{awayName}</span>
-        </div>
-      </div>
-
-      <div className="match-card-bottom">
-        {radios.length > 0 ? (
-          <div className="radio-confirmed">
-            <Radio size={15} />
-            {radios.length === 1
-              ? "1 rádio transmitindo"
-              : `${radios.length} rádios transmitindo`}
-          </div>
-        ) : (
-          <span className="no-radio">
-            Sem rádio confirmada
-          </span>
-        )}
-
-        <ChevronRight size={18} />
-      </div>
-    </article>
-  );
-}
-
-// ======================================================
-// DESTAQUE TIPO SHORT
-// ======================================================
-
-function HighlightCard({
-  match,
-  onOpen,
-}) {
-  const homeName = getHomeName(match);
-  const awayName = getAwayName(match);
-
-  return (
-    <button
-      className="highlight-card"
-      onClick={() => onOpen(match)}
-    >
-      <div className="highlight-league">
-        <LeagueBadge match={match} />
-
-        <span>{getLeagueName(match)}</span>
-      </div>
-
-      <div className="highlight-teams">
-        <div>
-          <TeamBadge
-            name={homeName}
-            logo={getHomeLogo(match)}
-            size="large"
-          />
-
-          <strong>{abbreviation(homeName)}</strong>
-        </div>
-
-        <div className="highlight-center">
-          {hasScore(match) ? (
-            <strong>
-              {getHomeScore(match)}
-              <span>×</span>
-              {getAwayScore(match)}
-            </strong>
-          ) : (
-            <strong>{formatTime(match)}</strong>
-          )}
-
-          <small>{matchStatus(match)}</small>
-        </div>
-
-        <div>
-          <TeamBadge
-            name={awayName}
-            logo={getAwayLogo(match)}
-            size="large"
-          />
-
-          <strong>{abbreviation(awayName)}</strong>
-        </div>
-      </div>
-
-      <div className="highlight-footer">
-        <span>
-          {getHomeName(match)} x {getAwayName(match)}
-        </span>
-
-        <ChevronRight size={17} />
-      </div>
-    </button>
-  );
-}
-
-// ======================================================
-// GRUPO POR CAMPEONATO
-// ======================================================
-
-function CompetitionSection({
-  leagueName,
-  matches,
-  favorites,
-  onToggleFavorite,
-  onOpen,
-  onOpenCompetition,
-}) {
-  if (!matches.length) return null;
-
-  const example = matches[0];
-
-  return (
-    <section className="competition-section">
-      <div className="competition-header">
-        <div className="competition-title">
-          <LeagueBadge match={example} />
-
-          <div>
-            <small>CAMPEONATO</small>
-            <h3>{leagueName}</h3>
-          </div>
-        </div>
-
-        <button
-          className="competition-link"
-          onClick={() =>
-            onOpenCompetition({
-              id: getLeagueId(example),
-              name: leagueName,
-              example,
-            })
-          }
-        >
-          Ver tudo
-          <ChevronRight size={16} />
-        </button>
-      </div>
-
-      <div className="competition-matches">
-        {matches.map((match, index) => (
-          <MatchCard
-            key={`${getMatchId(match)}-${index}`}
-            match={match}
-            favorites={favorites}
-            onToggleFavorite={onToggleFavorite}
-            onOpen={onOpen}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// ======================================================
-// HOME
-// ======================================================
-
-function HomeScreen({
-  matches,
-  favorites,
-  onToggleFavorite,
-  onOpenMatch,
-  onOpenCompetition,
-  loading,
-}) {
-  const liveMatches = matches.filter(isLive);
-
-  const highlights =
-    liveMatches.length > 0
-      ? [...liveMatches, ...matches.filter((m) => !isLive(m))].slice(0, 8)
-      : matches.slice(0, 8);
-
-  const groups = useMemo(() => {
-    const map = new Map();
-
-    for (const match of matches) {
-      const league = getLeagueName(match);
-
-      if (!map.has(league)) {
-        map.set(league, []);
-      }
-
-      map.get(league).push(match);
+    if (Array.isArray(data)) {
+      results.push(...data);
+      break;
     }
 
-    return Array.from(map.entries());
-  }, [matches]);
-
-  return (
-    <main className="screen home-screen">
-      <section className="home-hero">
-        <div>
-          <span className="hero-kicker">
-            ⚽ FUTEBOL HOJE
-          </span>
-
-          <h1>O futebol do dia está aqui.</h1>
-
-          <p>
-            Placares, jogos, campeonatos e as rádios
-            que realmente estão transmitindo.
-          </p>
-        </div>
-
-        <div className="hero-stat">
-          <strong>{matches.length}</strong>
-          <span>PARTIDAS</span>
-        </div>
-      </section>
-
-      <section className="home-block">
-        <div className="section-heading">
-          <div>
-            <span className="section-kicker">
-              EM DESTAQUE
-            </span>
-
-            <h2>Destaques do dia</h2>
-          </div>
-
-          <Star size={21} />
-        </div>
-
-        {loading ? (
-          <div className="loading-card">
-            Carregando destaques...
-          </div>
-        ) : highlights.length > 0 ? (
-          <div className="highlights-scroll">
-            {highlights.map((match, index) => (
-              <HighlightCard
-                key={`highlight-${getMatchId(match)}-${index}`}
-                match={match}
-                onOpen={onOpenMatch}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="empty-card">
-            Nenhuma partida encontrada para hoje.
-          </div>
-        )}
-      </section>
-
-      <section className="home-block">
-        <div className="section-heading">
-          <div>
-            <span className="section-kicker">
-              PROGRAMAÇÃO
-            </span>
-
-            <h2>Por campeonato</h2>
-          </div>
-
-          <CalendarDays size={21} />
-        </div>
-
-        <div className="home-competitions">
-          {groups.map(([league, leagueMatches]) => {
-            const example = leagueMatches[0];
-
-            return (
-              <button
-                key={league}
-                className="home-competition-card"
-                onClick={() =>
-                  onOpenCompetition({
-                    id: getLeagueId(example),
-                    name: league,
-                    example,
-                  })
-                }
-              >
-                <div className="home-competition-left">
-                  <LeagueBadge match={example} />
-
-                  <div>
-                    <strong>{league}</strong>
-
-                    <span>
-                      {leagueMatches.length}{" "}
-                      {leagueMatches.length === 1
-                        ? "partida"
-                        : "partidas"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="home-competition-preview">
-                  {leagueMatches.slice(0, 3).map((match, index) => (
-                    <div
-                      key={`${getMatchId(match)}-${index}`}
-                      className="mini-fixture"
-                    >
-                      <span>
-                        {abbreviation(getHomeName(match))}
-                      </span>
-
-                      <strong>
-                        {hasScore(match)
-                          ? `${getHomeScore(match)} × ${getAwayScore(match)}`
-                          : formatTime(match)}
-                      </strong>
-
-                      <span>
-                        {abbreviation(getAwayName(match))}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <ChevronRight size={19} />
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {liveMatches.length > 0 && (
-        <section className="home-block">
-          <div className="section-heading">
-            <div>
-              <span className="section-kicker live-kicker">
-                AO VIVO
-              </span>
-
-              <h2>Jogando agora</h2>
-            </div>
-
-            <Wifi size={21} />
-          </div>
-
-          <div className="competition-matches">
-            {liveMatches.slice(0, 5).map((match, index) => (
-              <MatchCard
-                key={`live-${getMatchId(match)}-${index}`}
-                match={match}
-                favorites={favorites}
-                onToggleFavorite={onToggleFavorite}
-                onOpen={onOpenMatch}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-    </main>
-  );
-}
-
-// ======================================================
-// JOGOS
-// ======================================================
-
-function GamesScreen({
-  matches,
-  favorites,
-  onToggleFavorite,
-  onOpenMatch,
-  onOpenCompetition,
-  loading,
-  selectedDate,
-  onDateChange,
-}) {
-  const groups = useMemo(() => {
-    const map = new Map();
-
-    for (const match of matches) {
-      const league = getLeagueName(match);
-
-      if (!map.has(league)) {
-        map.set(league, []);
-      }
-
-      map.get(league).push(match);
+    if (
+      Array.isArray(
+        data?.results
+      )
+    ) {
+      results.push(
+        ...data.results
+      );
     }
 
-    return Array.from(map.entries());
-  }, [matches]);
+    next =
+      data?.next || null;
 
-  return (
-    <main className="screen games-screen">
-      <div className="screen-title">
-        <div>
-          <span className="section-kicker">PLACARES</span>
-          <h1>Jogos</h1>
-        </div>
+    page++;
+  }
 
-        <Trophy size={27} />
-      </div>
+  return results;
+}
 
-      <div className="date-selector">
-        <button
-          className={selectedDate === todayISO(-1) ? "active" : ""}
-          onClick={() => onDateChange(todayISO(-1))}
-        >
-          <span>ONTEM</span>
-          <strong>
-            {todayISO(-1).slice(8, 10)}
-          </strong>
-        </button>
+// ======================================================
+// PARTIDAS POR DATA
+// ======================================================
 
-        <button
-          className={selectedDate === todayISO(0) ? "active" : ""}
-          onClick={() => onDateChange(todayISO(0))}
-        >
-          <span>HOJE</span>
-          <strong>
-            {todayISO(0).slice(8, 10)}
-          </strong>
-        </button>
+async function getAllMatches(date) {
+  const cacheKey =
+    `matches:${date}`;
 
-        <button
-          className={selectedDate === todayISO(1) ? "active" : ""}
-          onClick={() => onDateChange(todayISO(1))}
-        >
-          <span>AMANHÃ</span>
-          <strong>
-            {todayISO(1).slice(8, 10)}
-          </strong>
-        </button>
-      </div>
+  const saved =
+    cacheGet(cacheKey);
 
-      {loading ? (
-        <div className="loading-card">
-          Carregando partidas...
-        </div>
-      ) : groups.length === 0 ? (
-        <div className="empty-card">
-          Nenhuma partida encontrada nesta data.
-        </div>
-      ) : (
-        groups.map(([league, leagueMatches]) => (
-          <CompetitionSection
-            key={league}
-            leagueName={league}
-            matches={leagueMatches}
-            favorites={favorites}
-            onToggleFavorite={onToggleFavorite}
-            onOpen={onOpenMatch}
-            onOpenCompetition={onOpenCompetition}
-          />
-        ))
-      )}
-    </main>
+  if (saved) {
+    return saved;
+  }
+
+  const path =
+    `/events/?date_from=${encodeURIComponent(date)}` +
+    `&date_to=${encodeURIComponent(date)}` +
+    `&limit=50`;
+
+  const matches =
+    await getPaginated(
+      path,
+      20
+    );
+
+  return cacheSet(
+    cacheKey,
+    matches,
+    60 * 1000
   );
 }
 
 // ======================================================
-// FAVORITOS
+// AO VIVO
 // ======================================================
 
-function FavoritesScreen({
-  matches,
-  favorites,
-  onToggleFavorite,
-  onOpenMatch,
-}) {
-  const favoriteMatches = matches.filter((match) =>
-    favorites.includes(getMatchId(match))
-  );
+async function getLiveMatches() {
+  const cacheKey =
+    "live";
 
-  return (
-    <main className="screen favorites-screen">
-      <div className="screen-title">
-        <div>
-          <span className="section-kicker">
-            SEUS TIMES E JOGOS
-          </span>
+  const saved =
+    cacheGet(cacheKey);
 
-          <h1>Favoritos</h1>
-        </div>
+  if (saved) {
+    return saved;
+  }
 
-        <Heart size={27} />
-      </div>
+  const matches =
+    await getPaginated(
+      "/events/live/?limit=50",
+      20
+    );
 
-      {favoriteMatches.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-icon">
-            <Heart size={34} />
-          </div>
-
-          <h2>Nenhum favorito ainda</h2>
-
-          <p>
-            Toque no coração de uma partida para ela
-            aparecer aqui.
-          </p>
-        </div>
-      ) : (
-        <div className="competition-matches">
-          {favoriteMatches.map((match, index) => (
-            <MatchCard
-              key={`fav-${getMatchId(match)}-${index}`}
-              match={match}
-              favorites={favorites}
-              onToggleFavorite={onToggleFavorite}
-              onOpen={onOpenMatch}
-            />
-          ))}
-        </div>
-      )}
-    </main>
+  return cacheSet(
+    cacheKey,
+    matches,
+    20 * 1000
   );
 }
+
+// ======================================================
+// CAMPEONATOS
+// ======================================================
+
+async function getAllLeagues() {
+  const cacheKey =
+    "leagues";
+
+  const saved =
+    cacheGet(cacheKey);
+
+  if (saved) {
+    return saved;
+  }
+
+  const leagues =
+    await getPaginated(
+      "/leagues/?limit=50",
+      20
+    );
+
+  return cacheSet(
+    cacheKey,
+    leagues,
+    30 * 60 * 1000
+  );
+}
+
+// ======================================================
+// MAPEAMENTO AUTOMÁTICO DAS RÁDIOS
+// ======================================================
+
+let radioMapperRunning =
+  false;
+
+let lastRadioMapperRun =
+  null;
+
+let lastRadioMapperResult =
+  null;
+
+async function runRadioMapper(
+  date = brasilDate(),
+  options = {}
+) {
+  if (radioMapperRunning) {
+    return {
+      ok: true,
+      running: true,
+      message:
+        "Mapeador de rádios já está em execução",
+      last_run:
+        lastRadioMapperRun,
+      last_result:
+        lastRadioMapperResult,
+    };
+  }
+
+  radioMapperRunning = true;
+
+  try {
+    const matches =
+      await getAllMatches(date);
+
+    const collected =
+      await collectTransmissions({
+        maxMatches:
+          Number.isInteger(
+            options.maxMatches
+          )
+            ? options.maxMatches
+            : 40,
+      });
+
+    const mapped =
+      mapTransmissions(
+        matches,
+        collected.transmissions ||
+          [],
+        {
+          clearExisting:
+            options.clearExisting ===
+            true,
+        }
+      );
+
+    lastRadioMapperRun =
+      new Date().toISOString();
+
+    lastRadioMapperResult = {
+      ok: true,
+
+      date,
+
+      bsd_matches:
+        matches.length,
+
+      source:
+        collected.source,
+
+      source_url:
+        collected.source_url,
+
+      match_pages_found:
+        collected.match_pages_found,
+
+      match_pages_checked:
+        collected.match_pages_checked,
+
+      transmissions_found:
+        collected.transmissions_found,
+
+      mapped:
+        mapped.mapped,
+
+      not_mapped:
+        mapped.not_mapped,
+
+      ignored_radios:
+        collected.ignored_radios ||
+        [],
+
+      collector_errors:
+        collected.errors || [],
+
+      results:
+        mapped.results,
+    };
+
+    return lastRadioMapperResult;
+  } finally {
+    radioMapperRunning =
+      false;
+  }
+}
+
+// ======================================================
+// PROXY DE ESCUDOS / IMAGENS BSD
+// ======================================================
+
+async function proxyBsdImage(req, res, type) {
+  try {
+    if (!API_KEY) {
+      return res.status(500).json({
+        ok: false,
+        error:
+          "API_FOOTBALL_KEY não configurada no Render",
+      });
+    }
+
+    const id =
+      encodeURIComponent(
+        req.params.id
+      );
+
+    const imageUrl =
+      `${IMAGE_BASE}/img/${type}/${id}/?bg=transparent`;
+
+    const response =
+      await fetch(imageUrl, {
+        headers: {
+          Authorization:
+            `Token ${API_KEY}`,
+
+          Accept:
+            "image/*,*/*;q=0.8",
+        },
+      });
+
+    if (!response.ok) {
+      return res
+        .status(response.status)
+        .json({
+          ok: false,
+
+          error:
+            `BSD respondeu ${response.status} ao buscar imagem`,
+
+          type,
+
+          id:
+            req.params.id,
+        });
+    }
+
+    const contentType =
+      response.headers.get(
+        "content-type"
+      ) ||
+      "application/octet-stream";
+
+    if (
+      !contentType
+        .toLowerCase()
+        .startsWith("image/")
+    ) {
+      return res.status(502).json({
+        ok: false,
+
+        error:
+          "BSD não retornou um arquivo de imagem",
+
+        type,
+
+        id:
+          req.params.id,
+
+        content_type:
+          contentType,
+      });
+    }
+
+    const buffer =
+      Buffer.from(
+        await response.arrayBuffer()
+      );
+
+    res.setHeader(
+      "Content-Type",
+      contentType
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "public, max-age=86400, s-maxage=86400"
+    );
+
+    return res.send(buffer);
+  } catch (error) {
+    console.error(
+      `ERRO proxy BSD ${type}:`,
+      error
+    );
+
+    return res.status(500).json({
+      ok: false,
+
+      error:
+        error?.message ||
+        "Falha ao carregar imagem BSD",
+    });
+  }
+}
+
+app.get(
+  "/api/team-logo/:id",
+  (req, res) =>
+    proxyBsdImage(
+      req,
+      res,
+      "team"
+    )
+);
+
+app.get(
+  "/api/league-logo/:id",
+  (req, res) =>
+    proxyBsdImage(
+      req,
+      res,
+      "league"
+    )
+);
+
+// ======================================================
+// RAIZ
+// ======================================================
+
+app.get("/", (_req, res) => {
+  res.json({
+    ok: true,
+
+    app:
+      "radioplacar-api",
+
+    provider:
+      "BSD - Bzzoiro Sports Data",
+
+    teamLogos:
+      "BSD",
+
+    radioSystem:
+      true,
+
+    radioCollector:
+      true,
+
+    radioMapper:
+      true,
+  });
+});
+
+// ======================================================
+// HEALTH
+// ======================================================
+
+app.get(
+  "/api/health",
+  (_req, res) => {
+    res.json({
+      ok: true,
+
+      app:
+        "radioplacar-api",
+
+      provider:
+        "BSD - Bzzoiro Sports Data",
+
+      apiConfigured:
+        Boolean(API_KEY),
+
+      teamLogos:
+        "BSD",
+
+      radioSystem:
+        true,
+
+      radioCollector:
+        getRadioCollectorInfo(),
+
+      radioMapper: {
+        running:
+          radioMapperRunning,
+
+        last_run:
+          lastRadioMapperRun,
+
+        last_result:
+          lastRadioMapperResult,
+      },
+
+      radios:
+        getRadioStats(),
+
+      cacheItems:
+        cache.size,
+
+      date:
+        brasilDate(),
+    });
+  }
+);
+
+// ======================================================
+// JOGOS AO VIVO
+// ======================================================
+
+app.get(
+  "/api/live",
+  async (_req, res) => {
+    try {
+      const matches =
+        await getLiveMatches();
+
+      const response =
+        enrichMatches(matches);
+
+      res.json({
+        ok: true,
+
+        count:
+          response.length,
+
+        response,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/live:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+// ======================================================
+// JOGOS DE HOJE
+// ======================================================
+
+app.get(
+  "/api/today",
+  async (req, res) => {
+    try {
+      const date =
+        req.query.date ||
+        brasilDate();
+
+      const matches =
+        await getAllMatches(
+          date
+        );
+
+      const response =
+        enrichMatches(
+          matches
+        );
+
+      res.json({
+        ok: true,
+
+        date,
+
+        count:
+          response.length,
+
+        response,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/today:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+// ======================================================
+// PARTIDAS POR DATA
+// ======================================================
+
+app.get(
+  "/api/matches",
+  async (req, res) => {
+    try {
+      const date =
+        req.query.date ||
+        brasilDate();
+
+      const matches =
+        await getAllMatches(
+          date
+        );
+
+      const response =
+        enrichMatches(
+          matches
+        );
+
+      res.json({
+        ok: true,
+
+        date,
+
+        count:
+          response.length,
+
+        response,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/matches:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+// ======================================================
+// DETALHES DA PARTIDA
+// ======================================================
+
+app.get(
+  "/api/fixture/:id",
+  async (req, res) => {
+    try {
+      const id =
+        encodeURIComponent(
+          req.params.id
+        );
+
+      const cacheKey =
+        `fixture:${id}`;
+
+      let fixture =
+        cacheGet(
+          cacheKey
+        );
+
+      if (!fixture) {
+        fixture =
+          await apiRequest(
+            `/events/${id}/`
+          );
+
+        cacheSet(
+          cacheKey,
+          fixture,
+          30 * 1000
+        );
+      }
+
+      const enriched =
+        enrichMatch(
+          fixture
+        );
+
+      res.json({
+        ok: true,
+
+        response:
+          enriched,
+
+        radios:
+          getRadiosForMatch(
+            req.params.id
+          ),
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/fixture:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+// ======================================================
+// CAMPEONATOS
+// ======================================================
+
+app.get(
+  "/api/leagues",
+  async (_req, res) => {
+    try {
+      const leagues =
+        await getAllLeagues();
+
+      const response =
+        leagues.map(
+          (league) => ({
+            ...league,
+
+            logo:
+              league?.logo ||
+              getLeagueLogo(
+                league?.id
+              ),
+          })
+        );
+
+      res.json({
+        ok: true,
+
+        count:
+          response.length,
+
+        response,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/leagues:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
 
 // ======================================================
 // RÁDIOS
 // ======================================================
 
-function RadiosScreen({ radios, loading }) {
-  const [search, setSearch] = useState("");
-
-  const filtered = radios.filter((radio) => {
-    const text = normalizeText(
-      `${radio?.name || ""} ${radio?.state || ""} ${radio?.city || ""}`
-    ).toLowerCase();
-
-    return text.includes(normalizeText(search).toLowerCase());
-  });
-
-  const grouped = useMemo(() => {
-    const map = new Map();
-
-    for (const radio of filtered) {
-      const state =
-        firstValue(
-          radio?.state,
-          radio?.uf,
-          radio?.region,
-          "OUTRAS"
-        ) || "OUTRAS";
-
-      if (!map.has(state)) {
-        map.set(state, []);
-      }
-
-      map.get(state).push(radio);
-    }
-
-    return Array.from(map.entries());
-  }, [filtered]);
-
-  return (
-    <main className="screen radios-screen">
-      <div className="screen-title">
-        <div>
-          <span className="section-kicker">
-            FUTEBOL NO RÁDIO
-          </span>
-
-          <h1>Rádios</h1>
-        </div>
-
-        <Radio size={27} />
-      </div>
-
-      <div className="search-box">
-        <Search size={19} />
-
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar rádio ou estado..."
-        />
-      </div>
-
-      {loading ? (
-        <div className="loading-card">
-          Carregando rádios...
-        </div>
-      ) : grouped.length === 0 ? (
-        <div className="empty-card">
-          Nenhuma rádio encontrada.
-        </div>
-      ) : (
-        grouped.map(([state, stateRadios]) => (
-          <section
-            className="radio-state-section"
-            key={state}
-          >
-            <div className="radio-state-title">
-              <span>{state}</span>
-              <small>{stateRadios.length}</small>
-            </div>
-
-            <div className="radio-list">
-              {stateRadios.map((radio) => {
-                const stream =
-                  radio?.stream_verified === true &&
-                  radio?.stream
-                    ? radio.stream
-                    : null;
-
-                return (
-                  <article
-                    className="radio-card"
-                    key={radio.id}
-                  >
-                    <div className="radio-icon">
-                      <Radio size={22} />
-                    </div>
-
-                    <div className="radio-info">
-                      <strong>{radio.name}</strong>
-
-                      <span>
-                        {firstValue(
-                          radio.city,
-                          radio.state,
-                          "Rádio esportiva"
-                        )}
-                      </span>
-                    </div>
-
-                    {stream ? (
-                      <a
-                        className="radio-play"
-                        href={stream}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label={`Ouvir ${radio.name}`}
-                      >
-                        <Play size={19} fill="currentColor" />
-                      </a>
-                    ) : (
-                      <div
-                        className="radio-play disabled"
-                        title="Stream ainda não verificada"
-                      >
-                        <Radio size={18} />
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ))
-      )}
-    </main>
-  );
-}
-
-// ======================================================
-// DETALHE DA PARTIDA
-// ======================================================
-
-function MatchDetail({
-  match,
-  onBack,
-  favorites,
-  onToggleFavorite,
-}) {
-  if (!match) return null;
-
-  const homeName = getHomeName(match);
-  const awayName = getAwayName(match);
-
-  const radios = getRadios(match);
-
-  return (
-    <main className="screen detail-screen">
-      <div className="detail-top">
-        <button className="back-button" onClick={onBack}>
-          <ArrowLeft size={22} />
-        </button>
-
-        <div>
-          <small>{getLeagueName(match)}</small>
-          <strong>DETALHES DA PARTIDA</strong>
-        </div>
-
-        <FavoriteButton
-          matchId={getMatchId(match)}
-          favorites={favorites}
-          onToggle={onToggleFavorite}
-        />
-      </div>
-
-      <section className="detail-scoreboard">
-        <div className="detail-team">
-          <TeamBadge
-            name={homeName}
-            logo={getHomeLogo(match)}
-            size="xlarge"
-          />
-
-          <strong>{abbreviation(homeName)}</strong>
-          <span>{homeName}</span>
-        </div>
-
-        <div className="detail-score">
-          {hasScore(match) ? (
-            <strong>
-              {getHomeScore(match)}
-              <span>×</span>
-              {getAwayScore(match)}
-            </strong>
-          ) : (
-            <strong>{formatTime(match)}</strong>
-          )}
-
-          <div
-            className={
-              isLive(match)
-                ? "detail-status live"
-                : "detail-status"
-            }
-          >
-            {isLive(match) && <span className="mini-live-dot" />}
-            {matchStatus(match)}
-          </div>
-        </div>
-
-        <div className="detail-team">
-          <TeamBadge
-            name={awayName}
-            logo={getAwayLogo(match)}
-            size="xlarge"
-          />
-
-          <strong>{abbreviation(awayName)}</strong>
-          <span>{awayName}</span>
-        </div>
-      </section>
-
-      <section className="detail-section">
-        <div className="detail-section-title">
-          <Radio size={20} />
-
-          <div>
-            <small>AO VIVO</small>
-            <h2>Rádios transmitindo</h2>
-          </div>
-        </div>
-
-        {radios.length === 0 ? (
-          <div className="empty-card">
-            Nenhuma rádio confirmada para esta partida.
-          </div>
-        ) : (
-          <div className="radio-list">
-            {radios.map((radio) => {
-              const canPlay =
-                radio?.stream_verified === true &&
-                Boolean(radio?.stream);
-
-              return (
-                <article
-                  className="radio-card match-radio-card"
-                  key={radio.id}
-                >
-                  <div className="radio-icon">
-                    <Radio size={22} />
-                  </div>
-
-                  <div className="radio-info">
-                    <strong>{radio.name}</strong>
-
-                    <span>
-                      Transmissão confirmada
-                    </span>
-                  </div>
-
-                  {canPlay ? (
-                    <a
-                      className="radio-play"
-                      href={radio.stream}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <Play size={19} fill="currentColor" />
-                    </a>
-                  ) : (
-                    <div className="radio-confirmed-badge">
-                      CONFIRMADA
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className="detail-section">
-        <div className="detail-section-title">
-          <Clock3 size={20} />
-
-          <div>
-            <small>PARTIDA</small>
-            <h2>Linha do tempo</h2>
-          </div>
-        </div>
-
-        <div className="timeline-placeholder">
-          <div className="timeline-line" />
-
-          <div>
-            <strong>{matchStatus(match)}</strong>
-
-            <span>
-              Os eventos da partida aparecerão aqui
-              quando estiverem disponíveis na BSD.
-            </span>
-          </div>
-        </div>
-      </section>
-
-      <div className="detail-slogan">
-        <strong>RADIOPLACAR</strong>
-        <span>O futebol passa. A emoção fica.</span>
-      </div>
-    </main>
-  );
-}
-
-// ======================================================
-// CAMPEONATO
-// ======================================================
-
-function CompetitionScreen({
-  competition,
-  matches,
-  favorites,
-  onToggleFavorite,
-  onOpenMatch,
-  onBack,
-}) {
-  const [tab, setTab] = useState("matches");
-
-  const competitionMatches = matches.filter(
-    (match) =>
-      getLeagueId(match) === String(competition?.id) ||
-      getLeagueName(match) === competition?.name
-  );
-
-  return (
-    <main className="screen competition-detail-screen">
-      <div className="detail-top">
-        <button className="back-button" onClick={onBack}>
-          <ArrowLeft size={22} />
-        </button>
-
-        <div>
-          <small>CAMPEONATO</small>
-          <strong>{competition?.name}</strong>
-        </div>
-
-        <Trophy size={23} />
-      </div>
-
-      <div className="competition-tabs">
-        <button
-          className={tab === "matches" ? "active" : ""}
-          onClick={() => setTab("matches")}
-        >
-          PARTIDAS
-        </button>
-
-        <button
-          className={tab === "standings" ? "active" : ""}
-          onClick={() => setTab("standings")}
-        >
-          CLASSIFICAÇÃO
-        </button>
-      </div>
-
-      {tab === "matches" ? (
-        <div className="competition-matches">
-          {competitionMatches.map((match, index) => (
-            <MatchCard
-              key={`competition-${getMatchId(match)}-${index}`}
-              match={match}
-              favorites={favorites}
-              onToggleFavorite={onToggleFavorite}
-              onOpen={onOpenMatch}
-            />
-          ))}
-        </div>
-      ) : (
-        <StandingsPlaceholder
-          competition={competition}
-        />
-      )}
-    </main>
-  );
-}
-
-// ======================================================
-// CLASSIFICAÇÃO
-// ======================================================
-//
-// IMPORTANTE:
-// NÃO colocamos tabela fictícia.
-// Aqui já fica o visual preparado.
-// Quando ligarmos o endpoint real de classificação
-// da BSD, os clubes entram com escudo ou 3 letras.
-// ======================================================
-
-function StandingsPlaceholder({ competition }) {
-  return (
-    <section className="standings-section">
-      <div className="standings-header">
-        <div>
-          <span className="section-kicker">
-            TABELA
-          </span>
-
-          <h2>{competition?.name}</h2>
-        </div>
-
-        <Trophy size={25} />
-      </div>
-
-      <div className="standings-table-head">
-        <span>#</span>
-        <span>TIME</span>
-        <span>J</span>
-        <span>V</span>
-        <span>E</span>
-        <span>D</span>
-        <span>SG</span>
-        <strong>PTS</strong>
-      </div>
-
-      <div className="standings-empty">
-        <Trophy size={32} />
-
-        <strong>Classificação real</strong>
-
-        <p>
-          Esta área já está pronta. Vamos preencher
-          somente com a classificação oficial disponível
-          na fonte de dados, sem inventar posições ou pontos.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-// ======================================================
-// NAVEGAÇÃO INFERIOR
-// ======================================================
-
-function BottomNavigation({
-  active,
-  onChange,
-}) {
-  const items = [
-    {
-      id: "home",
-      label: "INÍCIO",
-      icon: Home,
-    },
-    {
-      id: "games",
-      label: "JOGOS",
-      icon: Trophy,
-    },
-    {
-      id: "favorites",
-      label: "FAVORITOS",
-      icon: Heart,
-    },
-    {
-      id: "radios",
-      label: "RÁDIOS",
-      icon: Radio,
-    },
-  ];
-
-  return (
-    <nav className="bottom-navigation">
-      {items.map((item) => {
-        const Icon = item.icon;
-        const selected = active === item.id;
-
-        return (
-          <button
-            key={item.id}
-            className={selected ? "active" : ""}
-            onClick={() => onChange(item.id)}
-          >
-            <Icon
-              size={22}
-              fill={
-                item.id === "favorites" && selected
-                  ? "currentColor"
-                  : "none"
-              }
-            />
-
-            <span>{item.label}</span>
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
-
-// ======================================================
-// APP
-// ======================================================
-
-function App() {
-  const [activeTab, setActiveTab] = useState("home");
-
-  const [matches, setMatches] = useState([]);
-  const [radios, setRadios] = useState([]);
-
-  const [loadingMatches, setLoadingMatches] = useState(true);
-  const [loadingRadios, setLoadingRadios] = useState(true);
-
-  const [selectedDate, setSelectedDate] = useState(todayISO());
-
-  const [selectedMatch, setSelectedMatch] = useState(null);
-  const [selectedCompetition, setSelectedCompetition] = useState(null);
-
-  const [favorites, setFavorites] = useState(() => {
-    try {
-      const saved = localStorage.getItem("radioplacar-favorites");
-
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // ====================================================
-  // PARTIDAS
-  // ====================================================
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadMatches() {
-      setLoadingMatches(true);
-
-      try {
-        const response = await fetch(
-          `${API_URL}/api/matches?date=${encodeURIComponent(selectedDate)}`
-        );
-
-        const data = await response.json();
-
-        if (cancelled) return;
-
-        if (data?.ok && Array.isArray(data?.response)) {
-          setMatches(data.response);
-        } else {
-          setMatches([]);
-        }
-      } catch (error) {
-        console.error("Erro ao carregar partidas:", error);
-
-        if (!cancelled) {
-          setMatches([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingMatches(false);
-        }
-      }
-    }
-
-    loadMatches();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedDate]);
-
-  // ====================================================
-  // RÁDIOS
-  // ====================================================
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRadios() {
-      setLoadingRadios(true);
-
-      try {
-        const response = await fetch(`${API_URL}/api/radios`);
-        const data = await response.json();
-
-        if (cancelled) return;
-
-        if (data?.ok && Array.isArray(data?.response)) {
-          setRadios(data.response);
-        } else {
-          setRadios([]);
-        }
-      } catch (error) {
-        console.error("Erro ao carregar rádios:", error);
-
-        if (!cancelled) {
-          setRadios([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingRadios(false);
-        }
-      }
-    }
-
-    loadRadios();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // ====================================================
-  // FAVORITOS
-  // ====================================================
-
-  function toggleFavorite(matchId) {
-    const id = String(matchId);
-
-    setFavorites((current) => {
-      const next = current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id];
-
-      localStorage.setItem(
-        "radioplacar-favorites",
-        JSON.stringify(next)
-      );
-
-      return next;
+app.get(
+  "/api/radios",
+  (_req, res) => {
+    const radios =
+      getRadios();
+
+    res.json({
+      ok: true,
+
+      count:
+        radios.length,
+
+      response:
+        radios,
     });
   }
+);
 
-  // ====================================================
-  // ABRIR PARTIDA
-  // ====================================================
+// ======================================================
+// UMA RÁDIO
+// ======================================================
 
-  async function openMatch(match) {
-    setSelectedCompetition(null);
-    setSelectedMatch(match);
+app.get(
+  "/api/radios/:id",
+  (req, res) => {
+    const radio =
+      getRadio(
+        req.params.id
+      );
 
-    const id = getMatchId(match);
+    if (!radio) {
+      return res
+        .status(404)
+        .json({
+          ok: false,
 
-    if (!id) return;
+          error:
+            "Rádio não encontrada",
+        });
+    }
 
+    res.json({
+      ok: true,
+
+      response:
+        radio,
+    });
+  }
+);
+
+// ======================================================
+// RÁDIOS DE UMA PARTIDA
+// ======================================================
+
+app.get(
+  "/api/fixture/:id/radios",
+  (req, res) => {
+    const radios =
+      getRadiosForMatch(
+        req.params.id
+      );
+
+    res.json({
+      ok: true,
+
+      match_id:
+        String(
+          req.params.id
+        ),
+
+      count:
+        radios.length,
+
+      response:
+        radios,
+    });
+  }
+);
+
+// ======================================================
+// VINCULAR RÁDIO A UMA PARTIDA
+// ======================================================
+
+app.post(
+  "/api/fixture/:id/radios",
+  (req, res) => {
     try {
-      const response = await fetch(
-        `${API_URL}/api/fixture/${encodeURIComponent(id)}`
-      );
+      const {
+        radio_id,
+        match_confirmed,
+        source,
+        source_url,
+        priority,
+      } = req.body;
 
-      const data = await response.json();
+      if (!radio_id) {
+        return res
+          .status(400)
+          .json({
+            ok: false,
 
-      if (data?.ok && data?.response) {
-        setSelectedMatch(data.response);
+            error:
+              "radio_id obrigatório",
+          });
       }
+
+      const result =
+        attachRadioToMatch(
+          req.params.id,
+          radio_id,
+          {
+            match_confirmed:
+              match_confirmed ===
+              true,
+
+            source:
+              source || null,
+
+            source_url:
+              source_url || null,
+
+            priority:
+              Number.isInteger(
+                priority
+              )
+                ? priority
+                : 99,
+          }
+        );
+
+      res.json({
+        ok: true,
+
+        response:
+          result,
+      });
     } catch (error) {
-      console.error("Erro ao atualizar partida:", error);
+      res
+        .status(400)
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+        });
     }
   }
+);
 
-  function openCompetition(competition) {
-    setSelectedMatch(null);
-    setSelectedCompetition(competition);
+// ======================================================
+// DESVINCULAR UMA RÁDIO
+// ======================================================
+
+app.delete(
+  "/api/fixture/:matchId/radios/:radioId",
+  (req, res) => {
+    const removed =
+      detachRadioFromMatch(
+        req.params.matchId,
+        req.params.radioId
+      );
+
+    res.json({
+      ok: true,
+
+      removed,
+    });
   }
+);
 
-  function closeDetails() {
-    setSelectedMatch(null);
-    setSelectedCompetition(null);
+// ======================================================
+// LIMPAR RÁDIOS DE UMA PARTIDA
+// ======================================================
+
+app.delete(
+  "/api/fixture/:id/radios",
+  (req, res) => {
+    const removed =
+      clearMatchRadios(
+        req.params.id
+      );
+
+    res.json({
+      ok: true,
+
+      removed,
+    });
   }
+);
 
-  function changeMainTab(tab) {
-    setSelectedMatch(null);
-    setSelectedCompetition(null);
-    setActiveTab(tab);
+// ======================================================
+// ESTATÍSTICAS DAS RÁDIOS
+// ======================================================
+
+app.get(
+  "/api/radio-stats",
+  (_req, res) => {
+    res.json({
+      ok: true,
+
+      response:
+        getRadioStats(),
+    });
   }
+);
 
-  // ====================================================
-  // CONTEÚDO
-  // ====================================================
+// ======================================================
+// COLETOR DE RÁDIOS
+// ======================================================
 
-  function renderContent() {
-    if (selectedMatch) {
-      return (
-        <MatchDetail
-          match={selectedMatch}
-          onBack={closeDetails}
-          favorites={favorites}
-          onToggleFavorite={toggleFavorite}
-        />
+app.get(
+  "/api/radio-collector",
+  (_req, res) => {
+    res.json({
+      ok: true,
+
+      response:
+        getRadioCollectorInfo(),
+    });
+  }
+);
+
+// ======================================================
+// EXECUTAR MAPEADOR
+// ======================================================
+
+async function radioMapperRoute(
+  req,
+  res
+) {
+  try {
+    const date =
+      req.query.date ||
+      brasilDate();
+
+    const maxRaw =
+      Number(
+        req.query.max || 40
       );
-    }
 
-    if (selectedCompetition) {
-      return (
-        <CompetitionScreen
-          competition={selectedCompetition}
-          matches={matches}
-          favorites={favorites}
-          onToggleFavorite={toggleFavorite}
-          onOpenMatch={openMatch}
-          onBack={closeDetails}
-        />
+    const maxMatches =
+      Number.isFinite(
+        maxRaw
+      )
+        ? Math.max(
+            1,
+            Math.min(
+              Math.trunc(
+                maxRaw
+              ),
+              100
+            )
+          )
+        : 40;
+
+    const result =
+      await runRadioMapper(
+        date,
+        {
+          maxMatches,
+
+          clearExisting:
+            false,
+        }
       );
-    }
 
-    if (activeTab === "home") {
-      return (
-        <HomeScreen
-          matches={matches}
-          favorites={favorites}
-          onToggleFavorite={toggleFavorite}
-          onOpenMatch={openMatch}
-          onOpenCompetition={openCompetition}
-          loading={loadingMatches}
-        />
+    res.json(result);
+  } catch (error) {
+    console.error(
+      "ERRO /api/radio-mapper/run:",
+      error
+    );
+
+    res
+      .status(
+        error.status || 500
+      )
+      .json({
+        ok: false,
+
+        error:
+          error.message,
+
+        details:
+          error.data || null,
+      });
+  }
+}
+
+app.get(
+  "/api/radio-mapper/run",
+  radioMapperRoute
+);
+
+app.post(
+  "/api/radio-mapper/run",
+  radioMapperRoute
+);
+
+// ======================================================
+// STATUS DO MAPEADOR
+// ======================================================
+
+app.get(
+  "/api/radio-mapper/status",
+  (_req, res) => {
+    res.json({
+      ok: true,
+
+      running:
+        radioMapperRunning,
+
+      last_run:
+        lastRadioMapperRun,
+
+      last_result:
+        lastRadioMapperResult,
+    });
+  }
+);
+
+// ======================================================
+// ASSOCIAÇÕES ATUAIS
+// ======================================================
+
+app.get(
+  "/api/radio-mapper/associations",
+  async (req, res) => {
+    try {
+      const date =
+        req.query.date ||
+        brasilDate();
+
+      const matches =
+        await getAllMatches(
+          date
+        );
+
+      const response =
+        enrichMatches(
+          matches
+        ).filter(
+          (match) =>
+            Array.isArray(
+              match.radios
+            ) &&
+            match.radios.length > 0
+        );
+
+      res.json({
+        ok: true,
+
+        date,
+
+        matches_with_radios:
+          response.length,
+
+        response,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/radio-mapper/associations:",
+        error
       );
-    }
 
-    if (activeTab === "games") {
-      return (
-        <GamesScreen
-          matches={matches}
-          favorites={favorites}
-          onToggleFavorite={toggleFavorite}
-          onOpenMatch={openMatch}
-          onOpenCompetition={openCompetition}
-          loading={loadingMatches}
-          selectedDate={selectedDate}
-          onDateChange={setSelectedDate}
-        />
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+// ======================================================
+// MAPEADOR AUTOMÁTICO
+// ======================================================
+
+async function backgroundRadioMapper() {
+  try {
+    const result =
+      await runRadioMapper(
+        brasilDate(),
+        {
+          maxMatches: 40,
+
+          clearExisting:
+            false,
+        }
       );
-    }
 
-    if (activeTab === "favorites") {
-      return (
-        <FavoritesScreen
-          matches={matches}
-          favorites={favorites}
-          onToggleFavorite={toggleFavorite}
-          onOpenMatch={openMatch}
-        />
-      );
-    }
-
-    return (
-      <RadiosScreen
-        radios={radios}
-        loading={loadingRadios}
-      />
+    console.log(
+      `Mapeador de rádios: ${result.mapped ?? 0} vínculos confirmados`
+    );
+  } catch (error) {
+    console.error(
+      "Mapeador de rádios falhou:",
+      error?.message ||
+        error
     );
   }
-
-  return (
-    <div className="app-shell">
-      <Header />
-
-      <div className="app-content">
-        {renderContent()}
-      </div>
-
-      {!selectedMatch && !selectedCompetition && (
-        <BottomNavigation
-          active={activeTab}
-          onChange={changeMainTab}
-        />
-      )}
-    </div>
-  );
 }
 
 // ======================================================
-// START
+// VER CACHE
 // ======================================================
 
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+app.get(
+  "/api/cache",
+  (_req, res) => {
+    const items = [];
+
+    for (
+      const [key, value]
+      of cache.entries()
+    ) {
+      items.push({
+        key,
+
+        expires:
+          new Date(
+            value.expires
+          ).toISOString(),
+
+        valid:
+          Date.now() <
+          value.expires,
+      });
+    }
+
+    res.json({
+      ok: true,
+
+      count:
+        items.length,
+
+      response:
+        items,
+    });
+  }
 );
+
+// ======================================================
+// 404
+// ======================================================
+
+app.use((req, res) => {
+  res
+    .status(404)
+    .json({
+      ok: false,
+
+      error:
+        "Rota não encontrada",
+
+      path:
+        req.originalUrl,
+    });
+});
+
+// ======================================================
+// SERVIDOR
+// ======================================================
+
+app.listen(PORT, () => {
+  console.log(
+    `RadioPlacar rodando na porta ${PORT}`
+  );
+
+  console.log(
+    `BSD configurada: ${Boolean(API_KEY)}`
+  );
+
+  console.log(
+    `Rádios cadastradas: ${getRadios().length}`
+  );
+
+  console.log(
+    "Escudos: serviço de imagens BSD"
+  );
+
+  setTimeout(() => {
+    backgroundRadioMapper();
+  }, 10 * 1000);
+
+  setInterval(() => {
+    backgroundRadioMapper();
+  }, 15 * 60 * 1000);
+});
