@@ -39,6 +39,12 @@ const API_BASE =
 const API_KEY =
   process.env.API_FOOTBALL_KEY;
 
+// URL pública do nosso próprio backend.
+// Assim o frontend não precisa receber a chave da BSD.
+const PUBLIC_API_URL =
+  process.env.PUBLIC_API_URL ||
+  "https://radioplacar-api.onrender.com";
+
 const cache = new Map();
 
 // ======================================================
@@ -89,12 +95,17 @@ function brasilDate() {
 // ESCUDOS / IMAGENS BSD
 // ======================================================
 //
-// Não buscamos escudo em Google, Wikipedia etc.
-// A URL abaixo aponta somente para o serviço de
-// imagens da própria BSD.
+// Agora o JSON NÃO manda a URL protegida da BSD diretamente.
 //
-// Se não houver team_id, retorna null.
-// O frontend poderá usar as 3 letras como fallback.
+// Ele manda uma URL do próprio RadioPlacar:
+//
+// /api/team-logo/2242
+//
+// Essa rota busca o escudo na BSD usando a chave somente
+// dentro do servidor.
+//
+// Se o escudo não existir, o frontend continua usando
+// as 3 letras como fallback.
 // ======================================================
 
 function getTeamLogo(teamId) {
@@ -107,9 +118,8 @@ function getTeamLogo(teamId) {
   }
 
   return (
-    `${API_BASE}/img/team/` +
-    `${encodeURIComponent(teamId)}/` +
-    `?bg=transparent`
+    `${PUBLIC_API_URL}/api/team-logo/` +
+    `${encodeURIComponent(teamId)}`
   );
 }
 
@@ -123,9 +133,8 @@ function getLeagueLogo(leagueId) {
   }
 
   return (
-    `${API_BASE}/img/league/` +
-    `${encodeURIComponent(leagueId)}/` +
-    `?bg=transparent`
+    `${PUBLIC_API_URL}/api/league-logo/` +
+    `${encodeURIComponent(leagueId)}`
   );
 }
 
@@ -493,880 +502,161 @@ async function runRadioMapper(
 }
 
 // ======================================================
-// RAIZ
+// PROXY DE ESCUDOS / IMAGENS BSD
 // ======================================================
-
-app.get("/", (_req, res) => {
-  res.json({
-    ok: true,
-
-    app:
-      "radioplacar-api",
-
-    provider:
-      "BSD - Bzzoiro Sports Data",
-
-    teamLogos:
-      "BSD",
-
-    radioSystem:
-      true,
-
-    radioCollector:
-      true,
-
-    radioMapper:
-      true,
-  });
-});
-
-// ======================================================
-// HEALTH
-// ======================================================
-
-app.get(
-  "/api/health",
-  (_req, res) => {
-    res.json({
-      ok: true,
-
-      app:
-        "radioplacar-api",
-
-      provider:
-        "BSD - Bzzoiro Sports Data",
-
-      apiConfigured:
-        Boolean(API_KEY),
-
-      teamLogos:
-        "BSD",
-
-      radioSystem:
-        true,
-
-      radioCollector:
-        getRadioCollectorInfo(),
-
-      radioMapper: {
-        running:
-          radioMapperRunning,
-
-        last_run:
-          lastRadioMapperRun,
-
-        last_result:
-          lastRadioMapperResult,
-      },
-
-      radios:
-        getRadioStats(),
-
-      cacheItems:
-        cache.size,
-
-      date:
-        brasilDate(),
-    });
-  }
-);
-
-// ======================================================
-// JOGOS AO VIVO
-// ======================================================
-
-app.get(
-  "/api/live",
-  async (_req, res) => {
-    try {
-      const matches =
-        await getLiveMatches();
-
-      const response =
-        enrichMatches(matches);
-
-      res.json({
-        ok: true,
-
-        count:
-          response.length,
-
-        response,
-      });
-    } catch (error) {
-      console.error(
-        "ERRO /api/live:",
-        error
-      );
-
-      res
-        .status(
-          error.status || 500
-        )
-        .json({
-          ok: false,
-
-          error:
-            error.message,
-
-          details:
-            error.data || null,
-        });
-    }
-  }
-);
-
-// ======================================================
-// JOGOS DE HOJE
-// ======================================================
-
-app.get(
-  "/api/today",
-  async (req, res) => {
-    try {
-      const date =
-        req.query.date ||
-        brasilDate();
-
-      const matches =
-        await getAllMatches(
-          date
-        );
-
-      const response =
-        enrichMatches(
-          matches
-        );
-
-      res.json({
-        ok: true,
-
-        date,
-
-        count:
-          response.length,
-
-        response,
-      });
-    } catch (error) {
-      console.error(
-        "ERRO /api/today:",
-        error
-      );
-
-      res
-        .status(
-          error.status || 500
-        )
-        .json({
-          ok: false,
-
-          error:
-            error.message,
-
-          details:
-            error.data || null,
-        });
-    }
-  }
-);
-
-// ======================================================
-// PARTIDAS POR DATA
 //
-// exemplo:
-// /api/matches?date=2026-09-15
-// ======================================================
-
-app.get(
-  "/api/matches",
-  async (req, res) => {
-    try {
-      const date =
-        req.query.date ||
-        brasilDate();
-
-      const matches =
-        await getAllMatches(
-          date
-        );
-
-      const response =
-        enrichMatches(
-          matches
-        );
-
-      res.json({
-        ok: true,
-
-        date,
-
-        count:
-          response.length,
-
-        response,
-      });
-    } catch (error) {
-      console.error(
-        "ERRO /api/matches:",
-        error
-      );
-
-      res
-        .status(
-          error.status || 500
-        )
-        .json({
-          ok: false,
-
-          error:
-            error.message,
-
-          details:
-            error.data || null,
-        });
-    }
-  }
-);
-
-// ======================================================
-// DETALHES DA PARTIDA
-// ======================================================
-
-app.get(
-  "/api/fixture/:id",
-  async (req, res) => {
-    try {
-      const id =
-        encodeURIComponent(
-          req.params.id
-        );
-
-      const cacheKey =
-        `fixture:${id}`;
-
-      let fixture =
-        cacheGet(
-          cacheKey
-        );
-
-      if (!fixture) {
-        fixture =
-          await apiRequest(
-            `/events/${id}/`
-          );
-
-        cacheSet(
-          cacheKey,
-          fixture,
-          30 * 1000
-        );
-      }
-
-      const enriched =
-        enrichMatch(
-          fixture
-        );
-
-      res.json({
-        ok: true,
-
-        response:
-          enriched,
-
-        radios:
-          getRadiosForMatch(
-            req.params.id
-          ),
-      });
-    } catch (error) {
-      console.error(
-        "ERRO /api/fixture:",
-        error
-      );
-
-      res
-        .status(
-          error.status || 500
-        )
-        .json({
-          ok: false,
-
-          error:
-            error.message,
-
-          details:
-            error.data || null,
-        });
-    }
-  }
-);
-
-// ======================================================
-// CAMPEONATOS
-// ======================================================
-
-app.get(
-  "/api/leagues",
-  async (_req, res) => {
-    try {
-      const leagues =
-        await getAllLeagues();
-
-      const response =
-        leagues.map(
-          (league) => ({
-            ...league,
-
-            logo:
-              league?.logo ||
-              getLeagueLogo(
-                league?.id
-              ),
-          })
-        );
-
-      res.json({
-        ok: true,
-
-        count:
-          response.length,
-
-        response,
-      });
-    } catch (error) {
-      console.error(
-        "ERRO /api/leagues:",
-        error
-      );
-
-      res
-        .status(
-          error.status || 500
-        )
-        .json({
-          ok: false,
-
-          error:
-            error.message,
-
-          details:
-            error.data || null,
-        });
-    }
-  }
-);
-
-// ======================================================
-// RÁDIOS
-// ======================================================
-
-app.get(
-  "/api/radios",
-  (_req, res) => {
-    const radios =
-      getRadios();
-
-    res.json({
-      ok: true,
-
-      count:
-        radios.length,
-
-      response:
-        radios,
-    });
-  }
-);
-
-// ======================================================
-// UMA RÁDIO
-// ======================================================
-
-app.get(
-  "/api/radios/:id",
-  (req, res) => {
-    const radio =
-      getRadio(
-        req.params.id
-      );
-
-    if (!radio) {
-      return res
-        .status(404)
-        .json({
-          ok: false,
-
-          error:
-            "Rádio não encontrada",
-        });
-    }
-
-    res.json({
-      ok: true,
-
-      response:
-        radio,
-    });
-  }
-);
-
-// ======================================================
-// RÁDIOS DE UMA PARTIDA
-// ======================================================
-
-app.get(
-  "/api/fixture/:id/radios",
-  (req, res) => {
-    const radios =
-      getRadiosForMatch(
-        req.params.id
-      );
-
-    res.json({
-      ok: true,
-
-      match_id:
-        String(
-          req.params.id
-        ),
-
-      count:
-        radios.length,
-
-      response:
-        radios,
-    });
-  }
-);
-
-// ======================================================
-// VINCULAR RÁDIO A UMA PARTIDA
-// ======================================================
-
-app.post(
-  "/api/fixture/:id/radios",
-  (req, res) => {
-    try {
-      const {
-        radio_id,
-        match_confirmed,
-        source,
-        source_url,
-        priority,
-      } = req.body;
-
-      if (!radio_id) {
-        return res
-          .status(400)
-          .json({
-            ok: false,
-
-            error:
-              "radio_id obrigatório",
-          });
-      }
-
-      const result =
-        attachRadioToMatch(
-          req.params.id,
-          radio_id,
-          {
-            match_confirmed:
-              match_confirmed ===
-              true,
-
-            source:
-              source || null,
-
-            source_url:
-              source_url || null,
-
-            priority:
-              Number.isInteger(
-                priority
-              )
-                ? priority
-                : 99,
-          }
-        );
-
-      res.json({
-        ok: true,
-
-        response:
-          result,
-      });
-    } catch (error) {
-      res
-        .status(400)
-        .json({
-          ok: false,
-
-          error:
-            error.message,
-        });
-    }
-  }
-);
-
-// ======================================================
-// DESVINCULAR UMA RÁDIO
-// ======================================================
-
-app.delete(
-  "/api/fixture/:matchId/radios/:radioId",
-  (req, res) => {
-    const removed =
-      detachRadioFromMatch(
-        req.params.matchId,
-        req.params.radioId
-      );
-
-    res.json({
-      ok: true,
-
-      removed,
-    });
-  }
-);
-
-// ======================================================
-// LIMPAR RÁDIOS DE UMA PARTIDA
-// ======================================================
-
-app.delete(
-  "/api/fixture/:id/radios",
-  (req, res) => {
-    const removed =
-      clearMatchRadios(
-        req.params.id
-      );
-
-    res.json({
-      ok: true,
-
-      removed,
-    });
-  }
-);
-
-// ======================================================
-// ESTATÍSTICAS DAS RÁDIOS
-// ======================================================
-
-app.get(
-  "/api/radio-stats",
-  (_req, res) => {
-    res.json({
-      ok: true,
-
-      response:
-        getRadioStats(),
-    });
-  }
-);
-
-// ======================================================
-// COLETOR DE RÁDIOS
-// ======================================================
-
-app.get(
-  "/api/radio-collector",
-  (_req, res) => {
-    res.json({
-      ok: true,
-
-      response:
-        getRadioCollectorInfo(),
-    });
-  }
-);
-
-// ======================================================
-// EXECUTAR MAPEADOR
+// ESTE É O CONSERTO PRINCIPAL.
 //
-// Funciona tanto pelo navegador (GET)
-// quanto POST.
+// O navegador não conhece API_FOOTBALL_KEY.
+//
+// Portanto:
+//
+// frontend
+//    ↓
+// radioplacar-api
+//    ↓ Authorization: Token ...
+// BSD
+//    ↓
+// imagem
+//
+// A chave nunca vai para o frontend.
 // ======================================================
 
-async function radioMapperRoute(
+async function proxyBsdImage(
   req,
-  res
+  res,
+  type
 ) {
   try {
-    const date =
-      req.query.date ||
-      brasilDate();
+    if (!API_KEY) {
+      return res
+        .status(500)
+        .json({
+          ok: false,
+          error:
+            "API_FOOTBALL_KEY não configurada no Render",
+        });
+    }
 
-    const maxRaw =
-      Number(
-        req.query.max || 40
+    const id =
+      encodeURIComponent(
+        req.params.id
       );
 
-    const maxMatches =
-      Number.isFinite(
-        maxRaw
-      )
-        ? Math.max(
-            1,
-            Math.min(
-              Math.trunc(
-                maxRaw
-              ),
-              100
-            )
-          )
-        : 40;
+    const imageUrl =
+      `${API_BASE}/img/${type}/${id}/?bg=transparent`;
 
-    const result =
-      await runRadioMapper(
-        date,
+    const response =
+      await fetch(
+        imageUrl,
         {
-          maxMatches,
+          headers: {
+            Authorization:
+              `Token ${API_KEY}`,
 
-          // Não apaga associação
-          // manual já existente.
-          clearExisting:
-            false,
+            Accept:
+              "image/*,*/*;q=0.8",
+          },
         }
       );
 
-    res.json(result);
+    if (!response.ok) {
+      return res
+        .status(
+          response.status
+        )
+        .json({
+          ok: false,
+
+          error:
+            `BSD respondeu ${response.status} ao buscar imagem`,
+
+          type,
+
+          id:
+            req.params.id,
+        });
+    }
+
+    const contentType =
+      response.headers.get(
+        "content-type"
+      ) ||
+      "application/octet-stream";
+
+    if (
+      !contentType
+        .toLowerCase()
+        .startsWith("image/")
+    ) {
+      return res
+        .status(502)
+        .json({
+          ok: false,
+
+          error:
+            "BSD não retornou um arquivo de imagem",
+
+          type,
+
+          id:
+            req.params.id,
+
+          content_type:
+            contentType,
+        });
+    }
+
+    const buffer =
+      Buffer.from(
+        await response.arrayBuffer()
+      );
+
+    res.setHeader(
+      "Content-Type",
+      contentType
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "public, max-age=86400, s-maxage=86400"
+    );
+
+    return res.send(buffer);
   } catch (error) {
     console.error(
-      "ERRO /api/radio-mapper/run:",
+      `ERRO proxy BSD ${type}:`,
       error
     );
 
-    res
-      .status(
-        error.status || 500
-      )
+    return res
+      .status(500)
       .json({
         ok: false,
 
         error:
-          error.message,
-
-        details:
-          error.data || null,
+          error?.message ||
+          "Falha ao carregar imagem BSD",
       });
   }
 }
 
 app.get(
-  "/api/radio-mapper/run",
-  radioMapperRoute
+  "/api/team-logo/:id",
+  (req, res) =>
+    proxyBsdImage(
+      req,
+      res,
+      "team"
+    )
 );
-
-app.post(
-  "/api/radio-mapper/run",
-  radioMapperRoute
-);
-
-// ======================================================
-// STATUS DO MAPEADOR
-// ======================================================
 
 app.get(
-  "/api/radio-mapper/status",
-  (_req, res) => {
-    res.json({
-      ok: true,
-
-      running:
-        radioMapperRunning,
-
-      last_run:
-        lastRadioMapperRun,
-
-      last_result:
-        lastRadioMapperResult,
-    });
-  }
+  "/api/league-logo/:id",
+  (req, res) =>
+    proxyBsdImage(
+      req,
+      res,
+      "league"
+    )
 );
-
-// ======================================================
-// ASSOCIAÇÕES ATUAIS
-// ======================================================
-
-app.get(
-  "/api/radio-mapper/associations",
-  async (req, res) => {
-    try {
-      const date =
-        req.query.date ||
-        brasilDate();
-
-      const matches =
-        await getAllMatches(
-          date
-        );
-
-      const response =
-        enrichMatches(
-          matches
-        ).filter(
-          (match) =>
-            Array.isArray(
-              match.radios
-            ) &&
-            match.radios.length > 0
-        );
-
-      res.json({
-        ok: true,
-
-        date,
-
-        matches_with_radios:
-          response.length,
-
-        response,
-      });
-    } catch (error) {
-      console.error(
-        "ERRO /api/radio-mapper/associations:",
-        error
-      );
-
-      res
-        .status(
-          error.status || 500
-        )
-        .json({
-          ok: false,
-
-          error:
-            error.message,
-
-          details:
-            error.data || null,
-        });
-    }
-  }
-);
-
-// ======================================================
-// MAPEADOR AUTOMÁTICO
-// ======================================================
-//
-// Primeira execução 10 segundos após subir.
-//
-// Depois repete a cada 15 minutos.
-//
-// Não apaga vínculos manuais.
-// ======================================================
-
-async function backgroundRadioMapper() {
-  try {
-    const result =
-      await runRadioMapper(
-        brasilDate(),
-        {
-          maxMatches: 40,
-
-          clearExisting:
-            false,
-        }
-      );
-
-    console.log(
-      `Mapeador de rádios: ${result.mapped ?? 0} vínculos confirmados`
-    );
-  } catch (error) {
-    console.error(
-      "Mapeador de rádios falhou:",
-      error?.message ||
-        error
-    );
-  }
-}
-
-// ======================================================
-// VER CACHE
-// ======================================================
-
-app.get(
-  "/api/cache",
-  (_req, res) => {
-    const items = [];
-
-    for (
-      const [key, value]
-      of cache.entries()
-    ) {
-      items.push({
-        key,
-
-        expires:
-          new Date(
-            value.expires
-          ).toISOString(),
-
-        valid:
-          Date.now() <
-          value.expires,
-      });
-    }
-
-    res.json({
-      ok: true,
-
-      count:
-        items.length,
-
-      response:
-        items,
-    });
-  }
-);
-
-// ======================================================
-// 404
-// ======================================================
-
-app.use((req, res) => {
-  res
-    .status(404)
-    .json({
-      ok: false,
-
-      error:
-        "Rota não encontrada",
-
-      path:
-        req.originalUrl,
-    });
-});
-
-// ======================================================
-// SERVIDOR
-// ======================================================
-
-app.listen(PORT, () => {
-  console.log(
-    `RadioPlacar rodando na porta ${PORT}`
-  );
-
-  console.log(
-    `BSD configurada: ${Boolean(API_KEY)}`
-  );
-
-  console.log(
-    `Rádios cadastradas: ${getRadios().length}`
-  );
-
-  console.log(
-    "Escudos: serviço de imagens BSD"
-  );
-
-  setTimeout(() => {
-    backgroundRadioMapper();
-  }, 10 * 1000);
-
-  setInterval(() => {
-    backgroundRadioMapper();
-  }, 15 * 60 * 1000);
-});
