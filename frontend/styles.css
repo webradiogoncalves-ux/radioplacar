@@ -4799,3 +4799,84 @@ input:focus-visible {
       16px;
   }
 }
+/* ======================================================
+   RPF PLACAR - CORREÇÃO DESTAQUES
+   separa PLACAR / STATUS / RELÓGIO
+====================================================== */
+
+.highlight-center {
+  min-width: 82px;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  text-align: center;
+}
+
+.highlight-center > strong {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px !important;
+
+  margin: 0 !important;
+
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1 !important;
+
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.highlight-center > strong > span {
+  display: inline-block !important;
+  margin: 0 2px !important;
+
+  font-size: 14px;
+  font-weight: 800;
+
+  color: #8c9693;
+}
+
+.highlight-center > small {
+  display: block !important;
+  width: auto !important;
+
+  margin: 0 !important;
+  padding: 4px 8px;
+
+  border-radius: 999px;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1.1 !important;
+
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+
+  color: #08120f;
+  background: #39ff88;
+}
+
+.highlight-center > strong + small {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 600px) {
+  .highlight-center {
+    min-width: 72px;
+    gap: 6px !important;
+  }
+
+  .highlight-center > strong {
+    font-size: 20px;
+    gap: 5px !important;
+  }
+
+  .highlight-center > small {
+    font-size: 8px;
+    padding: 4px 7px;
+  }
+}
