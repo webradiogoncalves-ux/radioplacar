@@ -194,6 +194,7 @@ function getLeagueLogo(match) {
 
 function getHomeScore(match) {
   return firstValue(
+    match?.placar_casa,
     match?.home_score,
     match?.score_home,
     match?.home_goals,
@@ -206,12 +207,12 @@ function getHomeScore(match) {
 
 function getAwayScore(match) {
   return firstValue(
+    match?.placar_visitante,
     match?.away_score,
     match?.score_away,
     match?.away_goals,
     match?.goals?.away,
     match?.score?.away,
-    match?.away?.score,
     match?.away_team?.score
   );
 }
@@ -233,12 +234,15 @@ function isLive(match) {
   const status = getRawStatus(match);
 
   return (
-    status.includes("live") ||
-    status.includes("progress") ||
-    status.includes("1st") ||
-    status.includes("2nd") ||
-    status.includes("half") ||
-    status.includes("playing")
+    status === "inprogress" ||
+    status === "in_progress" ||
+    status === "live" ||
+    status === "playing" ||
+    status === "1st_half" ||
+    status === "2nd_half" ||
+    status === "halftime" ||
+    status.includes("inprogress") ||
+    status.includes("progress")
   );
 }
 
@@ -246,16 +250,19 @@ function isFinished(match) {
   const status = getRawStatus(match);
 
   return (
-    status.includes("finished") ||
-    status.includes("full") ||
+    status === "finished" ||
+    status === "fulltime" ||
+    status === "full_time" ||
     status === "ft" ||
-    status.includes("ended") ||
-    status.includes("final")
+    status === "ended" ||
+    status === "final" ||
+    status.includes("finished")
   );
 }
 
 function getMinute(match) {
   return firstValue(
+    match?.minuto_atual,
     match?.minute,
     match?.elapsed,
     match?.status?.elapsed,
@@ -263,18 +270,77 @@ function getMinute(match) {
   );
 }
 
-function formatClock(match) {
-  const minute = Number(getMinute(match));
+function getSecond(match) {
+  return firstValue(
+    match?.segundo_atual,
+    match?.current_second,
+    match?.seconds,
+    match?.second,
+    match?.time?.second
+  );
+}
 
-  if (!Number.isFinite(minute)) {
+function formatClock(match) {
+  if (!isLive(match)) {
     return null;
   }
 
-  return `${String(minute).padStart(2, "0")}:00`;
+  const rawMinute = getMinute(match);
+
+  if (
+    rawMinute === null ||
+    rawMinute === undefined ||
+    rawMinute === ""
+  ) {
+    return "00:00";
+  }
+
+  /*
+   * Alguns provedores podem devolver o relógio
+   * pronto, por exemplo "68:24".
+   */
+  if (
+    typeof rawMinute === "string" &&
+    rawMinute.includes(":")
+  ) {
+    const parts = rawMinute.split(":");
+
+    const minute = Number(parts[0]);
+    const second = Number(parts[1]);
+
+    if (
+      Number.isFinite(minute) &&
+      Number.isFinite(second)
+    ) {
+      return (
+        `${String(Math.max(0, minute)).padStart(2, "0")}:` +
+        `${String(
+          Math.max(0, Math.min(59, second))
+        ).padStart(2, "0")}`
+      );
+    }
+  }
+
+  const minute = Number(rawMinute);
+  const second = Number(getSecond(match));
+
+  if (!Number.isFinite(minute)) {
+    return "00:00";
+  }
+
+  return (
+    `${String(Math.max(0, minute)).padStart(2, "0")}:` +
+    `${String(
+      Number.isFinite(second)
+        ? Math.max(0, Math.min(59, second))
+        : 0
+    ).padStart(2, "0")}`
+  );
 }
 
 function getMatchDate(match) {
   return firstValue(
+    match?.event_date,
     match?.date,
     match?.start_date,
     match?.datetime,
@@ -286,27 +352,37 @@ function getMatchDate(match) {
 function formatTime(match) {
   const raw = getMatchDate(match);
 
-  if (!raw) return "--:--";
+  if (!raw) {
+    return "--:--";
+  }
 
   try {
     const date = new Date(raw);
 
     if (Number.isNaN(date.getTime())) {
-      const found = String(raw).match(/\b(\d{1,2}):(\d{2})\b/);
+      const found = String(raw).match(
+        /\b(\d{1,2}):(\d{2})\b/
+      );
 
       if (found) {
-        return `${found[1].padStart(2, "0")}:${found[2]}`;
+        return (
+          `${found[1].padStart(2, "0")}:` +
+          `${found[2]}`
+        );
       }
 
       return "--:--";
     }
 
-    return new Intl.DateTimeFormat("pt-BR", {
-      timeZone: "America/Sao_Paulo",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(date);
+    return new Intl.DateTimeFormat(
+      "pt-BR",
+      {
+        timeZone: "America/Sao_Paulo",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }
+    ).format(date);
   } catch {
     return "--:--";
   }
@@ -314,7 +390,7 @@ function formatTime(match) {
 
 function matchStatus(match) {
   if (isLive(match)) {
-    return formatClock(match) || "AO VIVO";
+    return "AO VIVO";
   }
 
   if (isFinished(match)) {
@@ -325,9 +401,16 @@ function matchStatus(match) {
 }
 
 function hasScore(match) {
+  const home = getHomeScore(match);
+  const away = getAwayScore(match);
+
   return (
-    getHomeScore(match) !== null &&
-    getAwayScore(match) !== null
+    home !== null &&
+    home !== undefined &&
+    home !== "" &&
+    away !== null &&
+    away !== undefined &&
+    away !== ""
   );
 }
 
