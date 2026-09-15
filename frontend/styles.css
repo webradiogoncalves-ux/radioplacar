@@ -3622,3 +3622,672 @@ input:focus-visible {
     max-width: 105px !important;
   }
 }
+/* ======================================================
+   RPF PLACAR - DETALHES DA PARTIDA
+   ====================================================== */
+
+.rpf-detail-screen {
+  width: 100% !important;
+  max-width: 820px !important;
+
+  margin: 0 auto !important;
+
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* TOPO */
+
+.rpf-detail-top {
+  width: 100% !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    44px
+    minmax(0, 1fr)
+    44px !important;
+
+  align-items: center !important;
+
+  gap: 12px !important;
+
+  margin-bottom: 16px !important;
+}
+
+.rpf-detail-heading {
+  min-width: 0;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+
+  gap: 3px !important;
+
+  text-align: center !important;
+}
+
+.rpf-detail-heading small {
+  width: 100%;
+
+  color: #7e9b8c !important;
+
+  font-size: 10px !important;
+  font-weight: 800 !important;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rpf-detail-heading strong {
+  color: #fff !important;
+
+  font-size: 13px !important;
+  font-weight: 950 !important;
+
+  letter-spacing: 0.5px !important;
+}
+
+.rpf-detail-top .favorite-button {
+  position: static !important;
+
+  justify-self: end !important;
+}
+
+
+/* PLACAR PRINCIPAL */
+
+.rpf-detail-scoreboard {
+  width: 100% !important;
+
+  padding: 22px 18px !important;
+
+  box-sizing: border-box !important;
+
+  border-radius: 24px !important;
+
+  overflow: hidden !important;
+
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      rgba(44, 255, 139, 0.14),
+      transparent 230px
+    ),
+    linear-gradient(
+      180deg,
+      #09251a 0%,
+      #06140f 100%
+    ) !important;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.08) !important;
+
+  box-shadow:
+    0 16px 45px
+    rgba(0, 0, 0, 0.25) !important;
+}
+
+.rpf-detail-scoreboard.is-live {
+  border-color:
+    rgba(44, 255, 139, 0.35) !important;
+}
+
+
+/* RELÓGIO */
+
+.rpf-detail-clock {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+
+  gap: 5px !important;
+
+  margin-bottom: 22px !important;
+
+  text-align: center !important;
+}
+
+.rpf-detail-clock > strong {
+  color: #fff !important;
+
+  font-size: 32px !important;
+  line-height: 1 !important;
+
+  font-weight: 950 !important;
+
+  font-variant-numeric:
+    tabular-nums !important;
+}
+
+.rpf-detail-clock > small {
+  color: #779287 !important;
+
+  font-size: 10px !important;
+  font-weight: 750 !important;
+}
+
+.rpf-detail-status {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  gap: 6px !important;
+
+  padding: 5px 10px !important;
+
+  border-radius: 999px !important;
+
+  font-size: 9px !important;
+  font-weight: 950 !important;
+
+  letter-spacing: 0.8px !important;
+}
+
+.rpf-detail-status.live {
+  color: #00190c !important;
+
+  background: #2cff8b !important;
+}
+
+.rpf-detail-status.scheduled {
+  color: #b0c5ba !important;
+
+  background:
+    rgba(255, 255, 255, 0.07) !important;
+}
+
+.rpf-detail-status.finished {
+  color: #91a79c !important;
+
+  background:
+    rgba(255, 255, 255, 0.06) !important;
+}
+
+
+/* DOIS TIMES */
+
+.rpf-detail-teams {
+  width: 100% !important;
+
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(82px, auto)
+    minmax(0, 1fr) !important;
+
+  align-items: center !important;
+
+  gap: 16px !important;
+}
+
+.rpf-detail-team {
+  min-width: 0 !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+
+  gap: 7px !important;
+
+  text-align: center !important;
+}
+
+
+/* X-LARGE NÃO PODE EXPLODIR */
+
+.rpf-detail-team .team-badge,
+.team-badge-xlarge {
+  width: 76px !important;
+  height: 76px !important;
+
+  min-width: 76px !important;
+  max-width: 76px !important;
+
+  min-height: 76px !important;
+  max-height: 76px !important;
+
+  flex: 0 0 76px !important;
+}
+
+.rpf-detail-team .team-badge img,
+.team-badge-xlarge img {
+  width: 100% !important;
+  height: 100% !important;
+
+  max-width: 100% !important;
+  max-height: 100% !important;
+
+  object-fit: contain !important;
+
+  padding: 5px !important;
+
+  box-sizing: border-box !important;
+}
+
+.rpf-detail-team-code {
+  color: #fff !important;
+
+  font-size: 17px !important;
+  line-height: 1 !important;
+
+  font-weight: 950 !important;
+
+  letter-spacing: 0.5px !important;
+}
+
+.rpf-detail-team-name {
+  width: 100% !important;
+  max-width: 175px !important;
+
+  min-height: 34px !important;
+
+  color: #b7cbc0 !important;
+
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+
+  font-weight: 700 !important;
+
+  overflow-wrap: anywhere !important;
+}
+
+
+/* PLACAR CENTRAL */
+
+.rpf-detail-score {
+  min-width: 92px !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+
+  gap: 7px !important;
+}
+
+.rpf-detail-score > strong {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  gap: 10px !important;
+
+  color: #fff !important;
+
+  font-size: 39px !important;
+  line-height: 1 !important;
+
+  font-weight: 950 !important;
+
+  letter-spacing: -1px !important;
+
+  font-variant-numeric:
+    tabular-nums !important;
+}
+
+.rpf-detail-score > strong > small {
+  color: #5d796b !important;
+
+  font-size: 20px !important;
+}
+
+.rpf-detail-score > strong.pregame {
+  color: #d9e6df !important;
+}
+
+.rpf-detail-score-label {
+  color: #708c7e !important;
+
+  font-size: 8px !important;
+  font-weight: 950 !important;
+
+  letter-spacing: 1.2px !important;
+}
+
+
+/* CAMPEONATO */
+
+.rpf-detail-competition {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  gap: 8px !important;
+
+  margin-top: 22px !important;
+
+  padding-top: 15px !important;
+
+  border-top:
+    1px solid
+    rgba(255, 255, 255, 0.06) !important;
+
+  color: #91a99d !important;
+
+  font-size: 11px !important;
+  font-weight: 800 !important;
+
+  text-align: center !important;
+}
+
+
+/* SEÇÕES */
+
+.rpf-detail-section {
+  width: 100% !important;
+
+  margin-top: 18px !important;
+
+  padding: 17px !important;
+
+  box-sizing: border-box !important;
+
+  border-radius: 20px !important;
+
+  background:
+    rgba(8, 27, 20, 0.78) !important;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.07) !important;
+}
+
+.rpf-section-title {
+  display: flex !important;
+  align-items: center !important;
+
+  gap: 11px !important;
+
+  margin-bottom: 14px !important;
+}
+
+.rpf-section-icon {
+  width: 39px;
+  height: 39px;
+
+  flex: 0 0 39px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 12px;
+
+  color: #2cff8b;
+
+  background:
+    rgba(44, 255, 139, 0.09);
+}
+
+.rpf-section-title > div:last-child {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 2px;
+}
+
+.rpf-section-title small {
+  color: #2cff8b !important;
+
+  font-size: 8px !important;
+  font-weight: 950 !important;
+
+  letter-spacing: 1px !important;
+}
+
+.rpf-section-title h2 {
+  margin: 0 !important;
+
+  color: #fff !important;
+
+  font-size: 18px !important;
+  line-height: 1.1 !important;
+}
+
+
+/* SEM RÁDIO */
+
+.rpf-empty-radio {
+  display: flex !important;
+  align-items: center !important;
+
+  gap: 12px !important;
+
+  min-height: 72px !important;
+
+  padding: 14px !important;
+}
+
+.rpf-empty-radio > svg {
+  flex: 0 0 auto;
+
+  color: #708c7e !important;
+}
+
+.rpf-empty-radio > div {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 4px;
+}
+
+.rpf-empty-radio strong {
+  color: #d8e6df !important;
+
+  font-size: 12px !important;
+}
+
+.rpf-empty-radio span {
+  color: #779287 !important;
+
+  font-size: 10px !important;
+  line-height: 1.4 !important;
+}
+
+
+/* LINHA DO TEMPO */
+
+.rpf-timeline {
+  display: grid !important;
+
+  grid-template-columns:
+    24px
+    minmax(0, 1fr) !important;
+
+  gap: 12px !important;
+
+  padding: 7px 3px !important;
+}
+
+.rpf-timeline-marker {
+  position: relative;
+
+  display: flex;
+  justify-content: center;
+}
+
+.rpf-timeline-marker::after {
+  content: "";
+
+  position: absolute;
+
+  top: 13px;
+  bottom: -28px;
+
+  width: 2px;
+
+  background:
+    rgba(44, 255, 139, 0.13);
+}
+
+.rpf-timeline-marker > span {
+  position: relative;
+  z-index: 1;
+
+  width: 10px;
+  height: 10px;
+
+  margin-top: 4px;
+
+  border-radius: 50%;
+
+  background: #2cff8b;
+
+  box-shadow:
+    0 0 15px
+    rgba(44, 255, 139, 0.45);
+}
+
+.rpf-timeline-content {
+  min-width: 0;
+
+  display: flex !important;
+  flex-direction: column !important;
+
+  gap: 5px !important;
+}
+
+.rpf-timeline-content strong {
+  color: #fff !important;
+
+  font-size: 13px !important;
+  font-weight: 900 !important;
+}
+
+.rpf-timeline-content span {
+  color: #80998d !important;
+
+  font-size: 11px !important;
+  line-height: 1.45 !important;
+}
+
+
+/* RODAPÉ */
+
+.rpf-detail-slogan {
+  width: 100% !important;
+
+  margin:
+    24px
+    0
+    12px !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+
+  gap: 4px !important;
+
+  text-align: center !important;
+}
+
+.rpf-detail-slogan strong {
+  color: #fff !important;
+
+  font-size: 16px !important;
+  font-weight: 950 !important;
+}
+
+.rpf-detail-slogan strong span {
+  color: #2cff8b !important;
+}
+
+.rpf-detail-slogan small {
+  color: #6f887c !important;
+
+  font-size: 9px !important;
+}
+
+
+/* CELULAR */
+
+@media (max-width: 520px) {
+
+  .rpf-detail-screen {
+    padding-left: 11px !important;
+    padding-right: 11px !important;
+  }
+
+  .rpf-detail-top {
+    grid-template-columns:
+      40px
+      minmax(0, 1fr)
+      40px !important;
+
+    gap: 7px !important;
+  }
+
+  .rpf-detail-heading strong {
+    font-size: 11px !important;
+  }
+
+  .rpf-detail-scoreboard {
+    padding:
+      19px
+      11px !important;
+  }
+
+  .rpf-detail-clock > strong {
+    font-size: 28px !important;
+  }
+
+  .rpf-detail-teams {
+    grid-template-columns:
+      minmax(0, 1fr)
+      70px
+      minmax(0, 1fr) !important;
+
+    gap: 6px !important;
+  }
+
+  .rpf-detail-team .team-badge,
+  .team-badge-xlarge {
+    width: 62px !important;
+    height: 62px !important;
+
+    min-width: 62px !important;
+    max-width: 62px !important;
+
+    min-height: 62px !important;
+    max-height: 62px !important;
+
+    flex-basis: 62px !important;
+  }
+
+  .rpf-detail-team-code {
+    font-size: 15px !important;
+  }
+
+  .rpf-detail-team-name {
+    max-width: 110px !important;
+
+    font-size: 10px !important;
+  }
+
+  .rpf-detail-score {
+    min-width: 70px !important;
+  }
+
+  .rpf-detail-score > strong {
+    gap: 6px !important;
+
+    font-size: 30px !important;
+  }
+
+  .rpf-detail-score > strong > small {
+    font-size: 16px !important;
+  }
+
+  .rpf-detail-section {
+    padding: 14px !important;
+  }
+}
