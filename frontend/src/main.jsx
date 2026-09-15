@@ -1796,74 +1796,159 @@ function CompetitionScreen({
 }) {
   const [tab, setTab] = useState("matches");
 
-  const competitionMatches = matches.filter(
-    (match) =>
-      getLeagueId(match) === String(competition?.id) ||
-      getLeagueName(match) === competition?.name
+  const competitionMatches = useMemo(() => {
+    if (!competition) return [];
+
+    const wantedLeagueId = String(
+      firstValue(
+        competition?.league_id,
+        competition?.id,
+        ""
+      )
+    );
+
+    return matches.filter((match) => {
+      return String(getLeagueId(match)) === wantedLeagueId;
+    });
+  }, [competition, matches]);
+
+  const leagueId = firstValue(
+    competition?.league_id,
+    competition?.id
+  );
+
+  /*
+   * A Série A que testamos na BSD:
+   * league_id 9 / season_id 28.
+   *
+   * Para outros campeonatos NÃO inventamos temporada.
+   * Quando a competição trouxer season_id,
+   * ele será usado automaticamente.
+   */
+  const seasonId = firstValue(
+    competition?.season_id,
+    competition?.season?.id,
+    String(leagueId) === "9" ? 28 : null
+  );
+
+  const competitionForStandings = {
+    ...competition,
+    league_id: leagueId,
+    season_id: seasonId,
+  };
+
+  const leagueName = String(
+    firstValue(
+      competition?.name,
+      competition?.league_name,
+      competition?.league?.name,
+      competitionMatches[0]
+        ? getLeagueName(competitionMatches[0])
+        : null,
+      "Campeonato"
+    )
+  );
+
+  const leagueLogo = firstValue(
+    competition?.logo,
+    competition?.league_logo,
+    competition?.league?.logo,
+    competitionMatches[0]
+      ? getLeagueLogo(competitionMatches[0])
+      : null
   );
 
   return (
-    <main className="screen competition-detail-screen">
-      <div className="detail-top">
-        <button className="back-button" onClick={onBack}>
+    <main className="screen competition-screen">
+      <div className="competition-top">
+        <button
+          className="back-button"
+          onClick={onBack}
+          aria-label="Voltar"
+        >
           <ArrowLeft size={22} />
         </button>
 
-        <div>
-          <small>CAMPEONATO</small>
-          <strong>{competition?.name}</strong>
-        </div>
+        <div className="competition-title">
+          {leagueLogo ? (
+            <img
+              src={leagueLogo}
+              alt={leagueName}
+              className="competition-logo"
+            />
+          ) : (
+            <div className="competition-logo-fallback">
+              <Trophy size={22} />
+            </div>
+          )}
 
-        <Trophy size={23} />
+          <div>
+            <small>CAMPEONATO</small>
+            <strong>{leagueName}</strong>
+          </div>
+        </div>
       </div>
 
       <div className="competition-tabs">
         <button
-          className={tab === "matches" ? "active" : ""}
+          className={
+            tab === "matches"
+              ? "competition-tab active"
+              : "competition-tab"
+          }
           onClick={() => setTab("matches")}
         >
-          PARTIDAS
+          ⚽ PARTIDAS
         </button>
 
         <button
-          className={tab === "standings" ? "active" : ""}
+          className={
+            tab === "standings"
+              ? "competition-tab active"
+              : "competition-tab"
+          }
           onClick={() => setTab("standings")}
         >
-          CLASSIFICAÇÃO
+          🏆 CLASSIFICAÇÃO
         </button>
       </div>
 
       {tab === "matches" ? (
-        <div className="competition-matches">
-          {competitionMatches.map((match, index) => (
-            <MatchCard
-              key={`competition-${getMatchId(match)}-${index}`}
-              match={match}
-              favorites={favorites}
-              onToggleFavorite={onToggleFavorite}
-              onOpen={onOpenMatch}
-            />
-          ))}
-        </div>
+        <section className="competition-content">
+          {competitionMatches.length > 0 ? (
+            <div className="matches-list">
+              {competitionMatches.map((match) => (
+                <MatchCard
+                  key={getMatchId(match)}
+                  match={match}
+                  favorites={favorites}
+                  onToggleFavorite={onToggleFavorite}
+                  onOpen={onOpenMatch}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <Trophy size={32} />
+
+              <strong>
+                Nenhuma partida encontrada
+              </strong>
+
+              <span>
+                Não há partidas disponíveis para este campeonato.
+              </span>
+            </div>
+          )}
+        </section>
       ) : (
         <StandingsPlaceholder
-  competition={{
-    ...competition,
-    league_id:
-      competition?.league_id ??
-      competition?.id ??
-      9,
-    season_id:
-      competition?.season_id ??
-      competition?.season?.id ??
-      28,
-  }}
- />         
-)}
-</main>
-);
+          competition={competitionForStandings}
+        />
+      )}
+    </main>
+  );
 }
-
 // ======================================================
 // CLASSIFICAÇÃO
 // ======================================================
