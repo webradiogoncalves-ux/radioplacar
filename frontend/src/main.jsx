@@ -1146,9 +1146,6 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
 
           <CalendarDays size={21} />
 </div>
-
-{competitionsLoading ? (
-  <div className="loading-card">
              
 <div className="rpf-league-grid">
   {competitionsLoading ? (
