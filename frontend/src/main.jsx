@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Home,
@@ -1765,6 +1765,333 @@ function RadiosScreen({ radios, loading }) {
 }
 
 // ======================================================
+// RPF JORNADA ESPORTIVA - MOTOR DE ÁUDIO
+// ======================================================
+
+function getFixtureEvents(payload) {
+  const candidates = [
+    payload?.events,
+    payload?.eventos,
+    payload?.incidents,
+    payload?.timeline,
+    payload?.raw?.events,
+    payload?.raw?.eventos,
+  ];
+
+  for (const value of candidates) {
+    if (Array.isArray(value)) return value;
+  }
+
+  return [];
+}
+
+function eventMinute(event) {
+  return firstValue(
+    event?.minute,
+    event?.minuto,
+    event?.elapsed,
+    event?.time?.elapsed,
+    event?.time?.minute
+  );
+}
+
+function eventFingerprint(event, index = 0) {
+  return JSON.stringify([
+    firstValue(event?.id, event?.event_id, event?.incident_id, index),
+    eventMinute(event),
+    firstValue(event?.type, event?.tipo, event?.detail, event?.detalhe, ""),
+    firstValue(event?.player?.name, event?.player_name, event?.jogador, ""),
+    firstValue(event?.team?.name, event?.team_name, event?.equipe, ""),
+  ]);
+}
+
+function narrationForEvent(event, match) {
+  const rawType = normalizeText(
+    firstValue(
+      event?.type,
+      event?.tipo,
+      event?.detail,
+      event?.detalhe,
+      event?.name,
+      ""
+    )
+  ).toLowerCase();
+
+  const minute = eventMinute(event);
+  const minuteText =
+    minute !== null && minute !== undefined && minute !== ""
+      ? ` aos ${minute} minutos`
+      : "";
+
+  const team = String(
+    firstValue(
+      event?.team?.name,
+      event?.team_name,
+      event?.equipe?.nome,
+      event?.equipe,
+      ""
+    ) || ""
+  );
+
+  const player = String(
+    firstValue(
+      event?.player?.name,
+      event?.player_name,
+      event?.jogador?.nome,
+      event?.jogador,
+      ""
+    ) || ""
+  );
+
+  const who = player
+    ? ` de ${player}${team ? `, do ${team}` : ""}`
+    : team
+    ? ` do ${team}`
+    : "";
+
+  if (rawType.includes("goal") || rawType.includes("gol")) {
+    const home = getHomeScore(match);
+    const away = getAwayScore(match);
+    const score = hasScore(match)
+      ? ` Placar agora: ${getHomeName(match)} ${home}, ${getAwayName(match)} ${away}.`
+      : "";
+
+    return `Gol! Gol${who}${minuteText}.${score}`;
+  }
+
+  if (
+    rawType.includes("red card") ||
+    rawType.includes("cartao vermelho") ||
+    rawType.includes("cartão vermelho")
+  ) {
+    return `Cartão vermelho${who}${minuteText}.`;
+  }
+
+  if (
+    rawType.includes("yellow") ||
+    rawType.includes("amarelo")
+  ) {
+    return `Cartão amarelo${who}${minuteText}.`;
+  }
+
+  if (
+    rawType.includes("substitution") ||
+    rawType.includes("substitu")
+  ) {
+    return `Substituição${team ? ` no ${team}` : ""}${minuteText}.`;
+  }
+
+  if (
+    rawType.includes("half") ||
+    rawType.includes("interval") ||
+    rawType.includes("intervalo")
+  ) {
+    return `Intervalo de jogo. ${getHomeName(match)} ${getHomeScore(match) ?? 0}, ${getAwayName(match)} ${getAwayScore(match) ?? 0}.`;
+  }
+
+  if (
+    rawType.includes("finished") ||
+    rawType.includes("full time") ||
+    rawType.includes("fim")
+  ) {
+    return `Fim de jogo. ${getHomeName(match)} ${getHomeScore(match) ?? 0}, ${getAwayName(match)} ${getAwayScore(match) ?? 0}.`;
+  }
+
+  // A RPF não inventa lance. Evento desconhecido fica sem narração.
+  return null;
+}
+
+function RPFJornadaPlayer({ match }) {
+  const [enabled, setEnabled] = useState(false);
+  const [fixture, setFixture] = useState(match);
+  const [lastLine, setLastLine] = useState(
+    "Áudio aguardando ativação."
+  );
+  const [supported] = useState(
+    () => typeof window !== "undefined" && "speechSynthesis" in window
+  );
+  const spokenEvents = useRef(new Set());
+  const initialized = useRef(false);
+
+  const id = getMatchId(match);
+  const currentMatch = fixture || match;
+  const live = isLive(currentMatch);
+  const finished = isFinished(currentMatch);
+
+  function speak(text, interrupt = false) {
+    if (!enabled || !supported || !text) return;
+
+    if (interrupt) {
+      window.speechSynthesis.cancel();
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "pt-BR";
+    utterance.rate = 1.03;
+    utterance.pitch = 0.96;
+    utterance.volume = 1;
+
+    const voices = window.speechSynthesis.getVoices();
+    const ptVoice = voices.find((voice) =>
+      String(voice.lang || "").toLowerCase().startsWith("pt-br")
+    ) || voices.find((voice) =>
+      String(voice.lang || "").toLowerCase().startsWith("pt")
+    );
+
+    if (ptVoice) utterance.voice = ptVoice;
+
+    setLastLine(text);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function activateAudio() {
+    if (!supported) {
+      setLastLine("Este aparelho não oferece voz do navegador.");
+      return;
+    }
+
+    setEnabled(true);
+
+    const intro = live
+      ? `RPF Jornada Esportiva no ar. ${getHomeName(currentMatch)} contra ${getAwayName(currentMatch)}. A narração usa somente os eventos confirmados pela nossa fonte de dados.`
+      : finished
+      ? `RPF Pós-Jogo. ${getHomeName(currentMatch)} contra ${getAwayName(currentMatch)}.`
+      : `RPF Jornada Esportiva. Pré-jogo de ${getHomeName(currentMatch)} contra ${getAwayName(currentMatch)}, pelo ${getLeagueName(currentMatch)}. A jornada começa uma hora antes da partida.`;
+
+    // A primeira fala precisa ocorrer dentro do clique do usuário.
+    const utterance = new SpeechSynthesisUtterance(intro);
+    utterance.lang = "pt-BR";
+    utterance.rate = 1.03;
+    utterance.pitch = 0.96;
+    setLastLine(intro);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function stopAudio() {
+    setEnabled(false);
+    if (supported) window.speechSynthesis.cancel();
+    setLastLine("Áudio pausado.");
+  }
+
+  useEffect(() => {
+    setFixture(match);
+    spokenEvents.current = new Set();
+    initialized.current = false;
+  }, [id]);
+
+  useEffect(() => {
+    if (!enabled || !id) return undefined;
+
+    let cancelled = false;
+
+    async function updateFixture() {
+      try {
+        const response = await fetch(
+          `${API_URL}/api/fixture/${encodeURIComponent(id)}`,
+          { cache: "no-store" }
+        );
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const fresh = data?.response ?? data;
+
+        if (!fresh || cancelled) return;
+
+        setFixture((previous) => ({
+          ...(previous || match),
+          ...fresh,
+          radios: firstValue(
+            fresh?.radios,
+            data?.radios,
+            previous?.radios,
+            match?.radios
+          ),
+        }));
+
+        const events = getFixtureEvents(fresh);
+
+        // Na primeira consulta marcamos o histórico como conhecido.
+        // Assim a voz não dispara todos os eventos antigos de uma vez.
+        if (!initialized.current) {
+          events.forEach((event, index) =>
+            spokenEvents.current.add(eventFingerprint(event, index))
+          );
+          initialized.current = true;
+          return;
+        }
+
+        events.forEach((event, index) => {
+          const key = eventFingerprint(event, index);
+          if (spokenEvents.current.has(key)) return;
+
+          spokenEvents.current.add(key);
+          const line = narrationForEvent(event, fresh);
+
+          if (line) {
+            const important = /gol|vermelho|fim de jogo/i.test(line);
+            speak(line, important);
+          }
+        });
+      } catch (error) {
+        console.error("RPF Jornada: erro ao atualizar partida", error);
+      }
+    }
+
+    updateFixture();
+    const timer = window.setInterval(updateFixture, 12000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [enabled, id]);
+
+  useEffect(() => {
+    return () => {
+      if (supported) window.speechSynthesis.cancel();
+    };
+  }, [supported]);
+
+  return (
+    <section className={`rpf-jornada ${enabled ? "is-on" : ""}`}>
+      <div className="rpf-jornada-head">
+        <div className="rpf-jornada-mic">🎙️</div>
+        <div>
+          <small>RPF ÁUDIO</small>
+          <h2>RPF Jornada Esportiva</h2>
+        </div>
+        <span className="rpf-jornada-badge">
+          {finished ? "PÓS-JOGO" : live ? "AO VIVO" : "PRÉ-JOGO"}
+        </span>
+      </div>
+
+      <p className="rpf-jornada-line">{lastLine}</p>
+
+      <div className="rpf-jornada-actions">
+        {!enabled ? (
+          <button type="button" onClick={activateAudio}>
+            <Play size={18} fill="currentColor" />
+            ATIVAR ÁUDIO RPF
+          </button>
+        ) : (
+          <button type="button" className="active" onClick={stopAudio}>
+            <span className="rpf-audio-pulse" />
+            ÁUDIO RPF NO AR
+          </button>
+        )}
+      </div>
+
+      <small className="rpf-jornada-note">
+        Narração automática baseada somente em eventos recebidos da BSD.
+        Nenhuma jogada é inventada entre os eventos.
+      </small>
+    </section>
+  );
+}
+
+// ======================================================
 // DETALHE DA PARTIDA
 // ======================================================
 
@@ -1915,6 +2242,8 @@ function MatchDetail({
           <span>{getLeagueName(match)}</span>
         </div>
       </section>
+
+      <RPFJornadaPlayer match={match} />
 
       <section className="detail-section rpf-detail-section">
         <div className="detail-section-title rpf-section-title">
