@@ -28,6 +28,482 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
+import {
+  createRpfJourney,
+  removeRpfJourney,
+  listRpfJourneys,
+  getRpfJourneyState,
+  updateRpfEngine,
+  consumeRpfEvents,
+  findRpfJourneyCandidates,
+  autoRegisterPriorityJourneys,
+  getRpfPriority,
+  RPF_ENGINE_INFO,
+} from "./rpf-engine.js";
+// ======================================================
+// MOTOR RPF
+// ======================================================
+
+// ------------------------------------------------------
+// INFORMAÇÕES DO MOTOR
+// ------------------------------------------------------
+
+app.get(
+  "/api/rpf",
+  (_req, res) => {
+    res.json({
+      ok: true,
+
+      engine:
+        RPF_ENGINE_INFO,
+
+      active_journeys:
+        listRpfJourneys().length,
+
+      priorities: {
+        A: [
+          "Grêmio",
+          "Internacional",
+          "Chelsea",
+        ],
+
+        B: [
+          "Brasil de Pelotas",
+          "Pelotas",
+          "Gramadense",
+          "Veranópolis",
+        ],
+      },
+    });
+  }
+);
+
+// ------------------------------------------------------
+// CANDIDATOS À JORNADA RPF
+// ------------------------------------------------------
+
+app.get(
+  "/api/rpf/candidatos",
+  async (req, res) => {
+    try {
+      const date =
+        req.query.date ||
+        brasilDate();
+
+      const matches =
+        await getAllMatches(
+          date
+        );
+
+      const candidates =
+        findRpfJourneyCandidates(
+          matches
+        );
+
+      res.json({
+        ok: true,
+
+        date,
+
+        total_matches:
+          matches.length,
+
+        candidates:
+          candidates.length,
+
+        response:
+          candidates,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/rpf/candidatos:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+// ------------------------------------------------------
+// CLASSIFICAR UMA PARTIDA
+// ------------------------------------------------------
+
+app.get(
+  "/api/rpf/prioridade/:fixtureId",
+  async (req, res) => {
+    try {
+      const fixtureId =
+        encodeURIComponent(
+          req.params.fixtureId
+        );
+
+      const fixture =
+        await apiRequest(
+          `/events/${fixtureId}/`
+        );
+
+      const priority =
+        getRpfPriority(
+          fixture
+        );
+
+      res.json({
+        ok: true,
+
+        fixture:
+          enrichMatch(
+            fixture
+          ),
+
+        priority,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/rpf/prioridade:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+// ------------------------------------------------------
+// LISTAR JORNADAS CADASTRADAS
+// ------------------------------------------------------
+
+app.get(
+  "/api/rpf/jornadas",
+  (_req, res) => {
+    const journeys =
+      listRpfJourneys();
+
+    res.json({
+      ok: true,
+
+      count:
+        journeys.length,
+
+      response:
+        journeys,
+    });
+  }
+);
+
+// ------------------------------------------------------
+// REGISTRAR AUTOMATICAMENTE JOGOS PRIORITÁRIOS
+// ------------------------------------------------------
+
+app.post(
+  "/api/rpf/jornadas/auto",
+  async (req, res) => {
+    try {
+      const date =
+        req.query.date ||
+        req.body?.date ||
+        brasilDate();
+
+      const matches =
+        await getAllMatches(
+          date
+        );
+
+      const result =
+        autoRegisterPriorityJourneys(
+          matches
+        );
+
+      res.json({
+        ok: true,
+
+        date,
+
+        total_matches:
+          matches.length,
+
+        ...result,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO /api/rpf/jornadas/auto:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+// ------------------------------------------------------
+// ATIVAR JORNADA MANUALMENTE
+// ------------------------------------------------------
+
+app.post(
+  "/api/rpf/jornada/:fixtureId",
+  async (req, res) => {
+    try {
+      const fixtureId =
+        String(
+          req.params.fixtureId
+        );
+
+      const fixture =
+        await apiRequest(
+          `/events/${encodeURIComponent(
+            fixtureId
+          )}/`
+        );
+
+      const home =
+        fixture?.home_team_name ||
+        fixture?.home_team?.name ||
+        fixture?.home?.name ||
+        "Mandante";
+
+      const away =
+        fixture?.away_team_name ||
+        fixture?.away_team?.name ||
+        fixture?.away?.name ||
+        "Visitante";
+
+      const journey =
+        createRpfJourney({
+          fixtureId,
+
+          title:
+            `${home} x ${away}`,
+        });
+
+      res.json({
+        ok: true,
+
+        message:
+          "RPF Jornada Esportiva ativada",
+
+        priority:
+          getRpfPriority(
+            fixture
+          ),
+
+        journey,
+
+        fixture:
+          enrichMatch(
+            fixture
+          ),
+      });
+    } catch (error) {
+      console.error(
+        "ERRO POST /api/rpf/jornada:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+// ------------------------------------------------------
+// DESATIVAR JORNADA
+// ------------------------------------------------------
+
+app.delete(
+  "/api/rpf/jornada/:fixtureId",
+  (req, res) => {
+    removeRpfJourney(
+      req.params.fixtureId
+    );
+
+    res.json({
+      ok: true,
+
+      fixture_id:
+        String(
+          req.params.fixtureId
+        ),
+
+      message:
+        "RPF Jornada Esportiva desativada",
+    });
+  }
+);
+
+// ------------------------------------------------------
+// ATUALIZAR E CONSULTAR UMA JORNADA
+// ------------------------------------------------------
+
+app.get(
+  "/api/rpf/jornada/:fixtureId",
+  async (req, res) => {
+    try {
+      const fixtureId =
+        String(
+          req.params.fixtureId
+        );
+
+      const currentState =
+        getRpfJourneyState(
+          fixtureId
+        );
+
+      if (!currentState) {
+        return res
+          .status(404)
+          .json({
+            ok: false,
+
+            error:
+              "Esta partida não possui Jornada RPF ativa",
+
+            fixture_id:
+              fixtureId,
+          });
+      }
+
+      const fixture =
+        await apiRequest(
+          `/events/${encodeURIComponent(
+            fixtureId
+          )}/`
+        );
+
+      let allMatches = [];
+
+      try {
+        allMatches =
+          await getLiveMatches();
+      } catch (liveError) {
+        console.error(
+          "Motor RPF não conseguiu carregar outros jogos:",
+          liveError?.message ||
+          liveError
+        );
+      }
+
+      const engine =
+        updateRpfEngine({
+          mainMatch:
+            fixture,
+
+          allMatches,
+
+          now:
+            new Date(),
+        });
+
+      res.json({
+        ok: true,
+
+        response:
+          engine,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO GET /api/rpf/jornada:",
+        error
+      );
+
+      res
+        .status(
+          error.status || 500
+        )
+        .json({
+          ok: false,
+
+          error:
+            error.message,
+
+          details:
+            error.data || null,
+        });
+    }
+  }
+);
+
+// ------------------------------------------------------
+// EVENTOS DA JORNADA
+// Frontend consulta para tocar vinhetas,
+// Tempo e Placar, Plantão etc.
+// ------------------------------------------------------
+
+app.get(
+  "/api/rpf/jornada/:fixtureId/eventos",
+  (req, res) => {
+    const after =
+      req.query.after ||
+      null;
+
+    const events =
+      consumeRpfEvents(
+        req.params.fixtureId,
+        after
+      );
+
+    res.json({
+      ok: true,
+
+      fixture_id:
+        String(
+          req.params.fixtureId
+        ),
+
+      count:
+        events.length,
+
+      response:
+        events,
+    });
+  }
+);
 
 // ======================================================
 // BSD - BZZOIRO SPORTS DATA
