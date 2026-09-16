@@ -1,103 +1,172 @@
 // backend/rpf-engine.js
-// ======================================================
-// RPF PLACAR — MOTOR RPF
-// Jornada Esportiva + prioridades editoriais
-// ======================================================
+// ============================================================
+// MOTOR RPF
+// RPF PLACAR
+//
+// Prioridade A:
+//   Grêmio
+//   Internacional
+//   Chelsea
+//
+// Prioridade B:
+//   Brasil de Pelotas
+//   Pelotas
+//   Gramadense
+//   Veranópolis
+//
+// IMPORTANTE:
+// - Compatível com o formato REAL retornado pela BSD:
+//     home_team: "Botafogo"
+//     away_team: "Grêmio"
+// - Não inventa lances.
+// - Não inventa placares.
+// - Não ativa Jornada automaticamente.
+// ============================================================
 
 const journeys = new Map();
 const states = new Map();
 
-const BRAZIL_TZ = "America/Sao_Paulo";
-
 const DEFAULT_CONFIG = {
   pregameMinutes: 60,
+  timeAndScoreMinutes: 15,
   postgameMinutes: 30,
-  scoreboardEveryMinutes: 15,
 };
 
-// ======================================================
-// PRIORIDADES RPF
-// ======================================================
-
-// PRIORIDADE A
-// Foco principal da RPF Jornada Esportiva
 const RPF_PRIORITY_A = [
   "gremio",
-  "grêmio",
+  "gremio fb porto alegrense",
+  "gremio fb porto alegrense rs",
+  "gremio foot-ball porto alegrense",
+
   "internacional",
   "sport club internacional",
+  "sc internacional",
+
   "chelsea",
   "chelsea fc",
 ];
 
-// PRIORIDADE B
-// RPF Interior / jogos especiais
 const RPF_PRIORITY_B = [
   "brasil de pelotas",
   "brasil-pel",
   "gremio esportivo brasil",
-  "grêmio esportivo brasil",
+  "ge brasil",
+  "brasil saf",
+
   "pelotas",
   "esporte clube pelotas",
+  "ec pelotas",
+
   "gramadense",
+  "ce gramadense",
+
   "veranopolis",
-  "veranópolis",
+  "veranopolis ecrc",
 ];
 
-// ======================================================
-// UTILITÁRIOS
-// ======================================================
+function clean(value) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
 
-function clean(value = "") {
-  return String(value ?? "")
+function num(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeRpfName(value) {
+  return clean(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[.'’`´]/g, "")
+    .replace(/[-_/]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function num(value) {
-  const n = Number(value);
-
-  return Number.isFinite(n)
-    ? n
-    : null;
-}
-
-function normalizeRpfName(value = "") {
-  return String(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function idOf(match) {
-  return String(
-    match?.id ??
-    match?.fixture_id ??
-    match?.event_id ??
-    match?.evento_id ??
-    ""
-  );
-}
+// ============================================================
+// LEITURA DE TIMES
+// ============================================================
+//
+// Esta é a correção principal.
+//
+// BSD REAL:
+// {
+//   home_team: "Botafogo",
+//   away_team: "Grêmio"
+// }
+//
+// Também mantemos compatibilidade com outros formatos.
+// ============================================================
 
 function teamName(match, side) {
+  if (!match) return "";
+
   if (side === "home") {
+    const value =
+      match.home_team ??
+      match.home_team_name ??
+      match.homeTeam?.name ??
+      match.home?.name ??
+      match.teams?.home?.name ??
+      match.mandante?.name ??
+      match.mandante?.nome ??
+      match.time_casa?.name ??
+      match.time_casa?.nome ??
+      "";
+
+    if (typeof value === "string") {
+      return clean(value);
+    }
+
+    if (value && typeof value === "object") {
+      return clean(
+        value.name ??
+        value.nome ??
+        value.team_name ??
+        ""
+      );
+    }
+
+    return "";
+  }
+
+  const value =
+    match.away_team ??
+    match.away_team_name ??
+    match.awayTeam?.name ??
+    match.away?.name ??
+    match.teams?.away?.name ??
+    match.visitante?.name ??
+    match.visitante?.nome ??
+    match.time_visitante?.name ??
+    match.time_visitante?.nome ??
+    "";
+
+  if (typeof value === "string") {
+    return clean(value);
+  }
+
+  if (value && typeof value === "object") {
     return clean(
-      match?.home_team_name ??
-      match?.mandante?.name ??
-      match?.time_casa?.nome ??
-      match?.home_team?.name ??
-      match?.home?.name
+      value.name ??
+      value.nome ??
+      value.team_name ??
+      ""
     );
   }
 
-  return clean(
-    match?.away_team_name ??
-    match?.visitante?.name ??
-    match?.time_visitante?.nome ??
-    match?.away_team?.name ??
-    match?.away?.name
+  return "";
+}
+
+function idOf(match) {
+  return (
+    match?.id ??
+    match?.fixture_id ??
+    match?.fixture?.id ??
+    match?.event_id ??
+    null
   );
 }
 
@@ -105,51 +174,52 @@ function leagueName(match) {
   return clean(
     match?.league_name ??
     match?.league?.name ??
-    match?.campeonato?.nome ??
+    match?.competition_name ??
     match?.competition?.name ??
-    "Futebol"
+    match?.campeonato?.nome ??
+    match?.stage_name ??
+    ""
   );
 }
 
-function scoreOf(match) {
-  return {
-    home: num(
-      match?.placar_casa ??
+function scoreOf(match, side) {
+  if (side === "home") {
+    return num(
       match?.home_score ??
       match?.goals?.home ??
-      match?.score?.home
-    ),
+      match?.score?.home ??
+      match?.placar?.mandante,
+      0
+    );
+  }
 
-    away: num(
-      match?.placar_visitante ??
-      match?.away_score ??
-      match?.goals?.away ??
-      match?.score?.away
-    ),
-  };
+  return num(
+    match?.away_score ??
+    match?.goals?.away ??
+    match?.score?.away ??
+    match?.placar?.visitante,
+    0
+  );
 }
 
 function statusOf(match) {
-  return clean(
+  return normalizeRpfName(
     match?.status?.short ??
+    match?.status?.long ??
     match?.status ??
-    match?.situacao ??
-    match?.state
-  ).toLowerCase();
+    match?.fixture?.status?.short ??
+    ""
+  );
 }
 
 function minuteOf(match) {
-  const raw =
-    match?.minuto_atual ??
-    match?.minute ??
+  return num(
+    match?.current_minute ??
     match?.elapsed ??
-    match?.status?.elapsed;
-
-  const n = num(raw);
-
-  return n === null
-    ? null
-    : Math.max(0, n);
+    match?.minute ??
+    match?.fixture?.status?.elapsed,
+    0
+  );
 }
 
 function kickoffOf(match) {
@@ -157,22 +227,19 @@ function kickoffOf(match) {
     match?.event_date ??
     match?.date ??
     match?.fixture?.date ??
-    match?.datetime;
+    match?.kickoff ??
+    null;
 
-  if (!raw) {
-    return null;
-  }
+  if (!raw) return null;
 
   const date = new Date(raw);
 
-  return Number.isNaN(date.getTime())
-    ? null
-    : date;
-}
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
 
-// ======================================================
-// STATUS DA PARTIDA
-// ======================================================
+  return date;
+}
 
 function isLive(match) {
   const status = statusOf(match);
@@ -180,1039 +247,806 @@ function isLive(match) {
   return [
     "live",
     "inprogress",
-    "in_progress",
+    "in progress",
+    "first half",
+    "1st half",
+    "second half",
+    "2nd half",
+    "halftime",
+    "half time",
+    "ht",
     "1h",
     "2h",
-    "first_half",
-    "second_half",
-    "playing",
-  ].includes(status);
+  ].some((item) => status.includes(item));
 }
 
 function isHalftime(match) {
   const status = statusOf(match);
 
   return [
-    "ht",
     "halftime",
-    "half_time",
+    "half time",
     "interval",
     "intervalo",
-  ].includes(status);
+    "ht",
+  ].some((item) => status.includes(item));
 }
 
 function isFinished(match) {
   const status = statusOf(match);
 
   return [
-    "ft",
     "finished",
-    "final",
+    "fulltime",
+    "full time",
+    "ft",
     "ended",
     "encerrado",
-  ].includes(status);
+  ].some((item) => status.includes(item));
 }
 
-// ======================================================
-// FASE DA JORNADA
-// ======================================================
+// ============================================================
+// PRIORIDADES RPF
+// ============================================================
 
-function phaseFor(
-  match,
-  journey,
-  now = new Date()
-) {
-  const kickoff =
-    kickoffOf(match);
+function matchesRpfTeam(team, aliases) {
+  const normalized = normalizeRpfName(team);
 
-  if (!kickoff) {
-    return "scheduled";
-  }
+  if (!normalized) return false;
 
-  if (isFinished(match)) {
-    return "postgame";
-  }
+  return aliases.some((alias) => {
+    const wanted = normalizeRpfName(alias);
 
-  if (isHalftime(match)) {
-    return "halftime";
-  }
-
-  if (isLive(match)) {
-    return "live";
-  }
-
-  const journeyStart =
-    new Date(
-      kickoff.getTime() -
-      journey.config.pregameMinutes *
-      60 *
-      1000
-    );
-
-  if (
-    now >= journeyStart &&
-    now < kickoff
-  ) {
-    return "pregame";
-  }
-
-  if (now < journeyStart) {
-    return "scheduled";
-  }
-
-  // Horário chegou, mas BSD ainda
-  // não confirmou que começou.
-  return "waiting_source";
-}
-
-// ======================================================
-// EVENTOS DO MOTOR
-// ======================================================
-
-function audioEvent(
-  type,
-  extra = {}
-) {
-  return {
-    id:
-      `${Date.now()}-` +
-      Math.random()
-        .toString(36)
-        .slice(2, 9),
-
-    type,
-
-    created_at:
-      new Date().toISOString(),
-
-    ...extra,
-  };
-}
-
-function pushEvent(
-  state,
-  event
-) {
-  state.events.push(event);
-
-  // Evita crescimento infinito
-  if (state.events.length > 100) {
-    state.events =
-      state.events.slice(-100);
-  }
-}
-
-// ======================================================
-// PLACAR FALADO
-// ======================================================
-
-function spokenScore(match) {
-  const score =
-    scoreOf(match);
-
-  const home =
-    teamName(match, "home") ||
-    "Mandante";
-
-  const away =
-    teamName(match, "away") ||
-    "Visitante";
-
-  if (
-    score.home === null ||
-    score.away === null
-  ) {
     return (
-      `${home} e ${away}, ` +
-      `partida sem placar disponível.`
+      normalized === wanted ||
+      normalized.startsWith(`${wanted} `) ||
+      normalized.endsWith(` ${wanted}`)
     );
-  }
-
-  return (
-    `${home}, ${score.home}. ` +
-    `${away}, ${score.away}.`
-  );
+  });
 }
 
-// ======================================================
-// HORÁRIO DE BRASÍLIA
-// ======================================================
-
-function brazilTime(
-  date = new Date()
-) {
-  return new Intl.DateTimeFormat(
-    "pt-BR",
-    {
-      timeZone:
-        BRAZIL_TZ,
-
-      hour:
-        "2-digit",
-
-      minute:
-        "2-digit",
-
-      hour12:
-        false,
-    }
-  ).format(date);
-}
-
-// ======================================================
-// CHAVE DO PLACAR
-// ======================================================
-
-function scoreKey(match) {
-  const score =
-    scoreOf(match);
-
-  return (
-    `${score.home ?? "x"}:` +
-    `${score.away ?? "x"}:` +
-    `${statusOf(match)}`
-  );
-}
-
-// ======================================================
-// PARTIDA PÚBLICA
-// ======================================================
-
-function publicMatch(match) {
-  const score =
-    scoreOf(match);
-
-  return {
-    id:
-      idOf(match),
-
-    league:
-      leagueName(match),
-
-    home:
-      teamName(
-        match,
-        "home"
-      ),
-
-    away:
-      teamName(
-        match,
-        "away"
-      ),
-
-    home_score:
-      score.home,
-
-    away_score:
-      score.away,
-
-    status:
-      statusOf(match),
-
-    minute:
-      minuteOf(match),
-
-    event_date:
-      kickoffOf(match)
-        ?.toISOString() ??
-      null,
-  };
-}
-
-// ======================================================
-// TEMPO E PLACAR RPF
-// ======================================================
-
-function buildScoreboardText(
-  mainMatch,
-  allMatches,
-  now
-) {
-  const live =
-    allMatches
-      .filter(
-        (match) =>
-          isLive(match) ||
-          isHalftime(match)
-      )
-      .slice(0, 12);
-
-  const selected =
-    live.length
-      ? live
-      : [mainMatch]
-          .filter(Boolean);
-
-  const lines =
-    selected.map(
-      (match) => {
-        return (
-          `${leagueName(match)}. ` +
-          `${spokenScore(match)}`
-        );
-      }
-    );
-
-  return {
-    time:
-      brazilTime(now),
-
-    text:
-      `Agora, ${brazilTime(now)}. ` +
-      (
-        lines.length
-          ? lines.join(" ")
-          : (
-            "Nenhum outro placar " +
-            "ao vivo disponível " +
-            "neste momento."
-          )
-      ),
-
-    matches:
-      selected.map(
-        publicMatch
-      ),
-  };
-}
-
-// ======================================================
-// IDENTIFICAÇÃO DE PRIORIDADE
-// ======================================================
-
-function matchesRpfTeam(
-  team,
-  list
-) {
-  const name =
-    normalizeRpfName(team);
-
-  if (!name) {
-    return false;
-  }
-
-  return list.some(
-    (candidate) => {
-      const target =
-        normalizeRpfName(
-          candidate
-        );
-
-      return (
-        name === target ||
-        name.includes(target) ||
-        target.includes(name)
-      );
-    }
-  );
-}
-
-export function getRpfPriority(
-  match
-) {
-  const home =
-    teamName(
-      match,
-      "home"
-    );
-
-  const away =
-    teamName(
-      match,
-      "away"
-    );
-
-  // ==============================
-  // PRIORIDADE A
-  // Grêmio / Inter / Chelsea
-  // ==============================
+export function getRpfPriority(match) {
+  const home = teamName(match, "home");
+  const away = teamName(match, "away");
 
   if (
-    matchesRpfTeam(
-      home,
-      RPF_PRIORITY_A
-    ) ||
-    matchesRpfTeam(
-      away,
-      RPF_PRIORITY_A
-    )
+    matchesRpfTeam(home, RPF_PRIORITY_A) ||
+    matchesRpfTeam(away, RPF_PRIORITY_A)
   ) {
-    return {
-      level:
-        "A",
-
-      autoJourneyCandidate:
-        true,
-
-      reason:
-        "Dupla Gre-Nal / Chelsea",
-    };
+    return "A";
   }
-
-  // ==============================
-  // PRIORIDADE B
-  // RPF Interior
-  // ==============================
 
   if (
-    matchesRpfTeam(
-      home,
-      RPF_PRIORITY_B
-    ) ||
-    matchesRpfTeam(
-      away,
-      RPF_PRIORITY_B
-    )
+    matchesRpfTeam(home, RPF_PRIORITY_B) ||
+    matchesRpfTeam(away, RPF_PRIORITY_B)
   ) {
-    return {
-      level:
-        "B",
-
-      autoJourneyCandidate:
-        true,
-
-      reason:
-        "RPF Interior / jogo especial",
-    };
+    return "B";
   }
 
-  return {
-    level:
-      "NORMAL",
-
-    autoJourneyCandidate:
-      false,
-
-    reason:
-      "Cobertura normal do RPF Placar",
-  };
+  return null;
 }
 
-// ======================================================
-// LOCALIZAR CANDIDATOS À JORNADA
-// ======================================================
-
-export function findRpfJourneyCandidates(
-  matches = []
-) {
+export function findRpfJourneyCandidates(matches = []) {
   if (!Array.isArray(matches)) {
     return [];
   }
 
   return matches
-    .map(
-      (match) => ({
-        match:
-          publicMatch(match),
+    .map((match) => {
+      const priority = getRpfPriority(match);
 
-        priority:
-          getRpfPriority(match),
-      })
-    )
-    .filter(
-      (item) =>
-        item.priority
-          .autoJourneyCandidate
-    )
-    .sort(
-      (a, b) => {
-        const weight = {
-          A: 1,
-          B: 2,
-          C: 3,
-          NORMAL: 9,
-        };
-
-        return (
-          (
-            weight[
-              a.priority.level
-            ] ?? 9
-          ) -
-          (
-            weight[
-              b.priority.level
-            ] ?? 9
-          )
-        );
+      if (!priority) {
+        return null;
       }
-    );
+
+      return {
+        fixtureId: idOf(match),
+        priority,
+
+        homeTeam: teamName(match, "home"),
+        awayTeam: teamName(match, "away"),
+
+        home_team: teamName(match, "home"),
+        away_team: teamName(match, "away"),
+
+        league: leagueName(match),
+
+        leagueId:
+          match?.league_id ??
+          match?.league?.id ??
+          null,
+
+        kickoff:
+          match?.event_date ??
+          match?.date ??
+          match?.fixture?.date ??
+          null,
+
+        status:
+          match?.status ??
+          match?.fixture?.status?.short ??
+          null,
+
+        match,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.priority === "A" && b.priority !== "A") return -1;
+      if (a.priority !== "A" && b.priority === "A") return 1;
+
+      const dateA = a.kickoff
+        ? new Date(a.kickoff).getTime()
+        : Number.MAX_SAFE_INTEGER;
+
+      const dateB = b.kickoff
+        ? new Date(b.kickoff).getTime()
+        : Number.MAX_SAFE_INTEGER;
+
+      return dateA - dateB;
+    });
 }
 
-// ======================================================
-// CRIAR JORNADA
-// ======================================================
+// ============================================================
+// JORNADA
+// ============================================================
 
 export function createRpfJourney({
   fixtureId,
-  title = null,
-
-  pregameMinutes =
-    DEFAULT_CONFIG
-      .pregameMinutes,
-
-  postgameMinutes =
-    DEFAULT_CONFIG
-      .postgameMinutes,
-
-  scoreboardEveryMinutes =
-    DEFAULT_CONFIG
-      .scoreboardEveryMinutes,
+  priority = "NORMAL",
+  enabled = true,
+  pregameMinutes = DEFAULT_CONFIG.pregameMinutes,
+  timeAndScoreMinutes = DEFAULT_CONFIG.timeAndScoreMinutes,
+  postgameMinutes = DEFAULT_CONFIG.postgameMinutes,
 } = {}) {
-
-  if (!fixtureId) {
-    throw new Error(
-      "fixtureId é obrigatório " +
-      "para criar a Jornada RPF."
-    );
+  if (fixtureId === null || fixtureId === undefined) {
+    throw new Error("fixtureId é obrigatório.");
   }
 
-  const id =
-    String(fixtureId);
+  const id = String(fixtureId);
 
   const journey = {
-    fixtureId:
-      id,
-
-    title,
-
-    enabled:
-      true,
-
-    created_at:
-      new Date()
-        .toISOString(),
-
-    config: {
-      pregameMinutes,
-      postgameMinutes,
-      scoreboardEveryMinutes,
-    },
+    fixtureId: id,
+    enabled: Boolean(enabled),
+    priority,
+    pregameMinutes,
+    timeAndScoreMinutes,
+    postgameMinutes,
+    createdAt: new Date().toISOString(),
   };
 
-  journeys.set(
-    id,
-    journey
-  );
+  journeys.set(id, journey);
 
   if (!states.has(id)) {
-    states.set(
-      id,
-      {
-        phase:
-          "scheduled",
+    states.set(id, {
+      fixtureId: id,
+      phase: "scheduled",
+      events: [],
+      eventCounter: 0,
 
-        previousScores:
-          new Map(),
+      openingPlayed: false,
+      crowdStarted: false,
+      halftimePlayed: false,
+      fulltimePlayed: false,
 
-        lastScoreboardAt:
-          0,
+      lastMainScore: null,
+      lastScoreboardAt: null,
 
-        events:
-          [],
+      otherScores: new Map(),
 
-        updated_at:
-          null,
-      }
-    );
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   return journey;
 }
 
-// ======================================================
-// CADASTRAR AUTOMATICAMENTE PRIORIDADES
-// ======================================================
+export function autoRegisterPriorityJourneys(matches = []) {
+  const candidates = findRpfJourneyCandidates(matches);
+  const registered = [];
 
-export function autoRegisterPriorityJourneys(
-  matches = []
-) {
-  const candidates =
-    findRpfJourneyCandidates(
-      matches
-    );
+  for (const candidate of candidates) {
+    if (!candidate.fixtureId) continue;
 
-  const registered =
-    [];
+    const id = String(candidate.fixtureId);
 
-  for (
-    const item
-    of candidates
-  ) {
-    const fixtureId =
-      item.match.id;
-
-    if (!fixtureId) {
+    if (journeys.has(id)) {
       continue;
     }
 
-    if (
-      !journeys.has(
-        String(fixtureId)
-      )
-    ) {
-      const journey =
-        createRpfJourney({
-          fixtureId,
+    const journey = createRpfJourney({
+      fixtureId: id,
+      priority: candidate.priority,
+    });
 
-          title:
-            `${item.match.home} x ` +
-            `${item.match.away}`,
-        });
-
-      registered.push({
-        ...journey,
-
-        priority:
-          item.priority,
-      });
-    }
+    registered.push({
+      ...journey,
+      homeTeam: candidate.homeTeam,
+      awayTeam: candidate.awayTeam,
+    });
   }
 
-  return {
-    candidates:
-      candidates.length,
-
-    registered:
-      registered.length,
-
-    journeys:
-      registered,
-  };
+  return registered;
 }
 
-// ======================================================
-// REMOVER JORNADA
-// ======================================================
+export function removeRpfJourney(fixtureId) {
+  const id = String(fixtureId);
 
-export function removeRpfJourney(
-  fixtureId
-) {
-  const id =
-    String(fixtureId);
+  const existed = journeys.delete(id);
 
-  journeys.delete(id);
   states.delete(id);
 
-  return true;
+  return existed;
 }
-
-// ======================================================
-// LISTAR JORNADAS
-// ======================================================
 
 export function listRpfJourneys() {
-  return [
-    ...journeys.values(),
-  ];
+  return Array.from(journeys.values());
 }
 
-// ======================================================
-// ESTADO DA JORNADA
-// ======================================================
+export function getRpfJourneyState(fixtureId) {
+  const id = String(fixtureId);
 
-export function getRpfJourneyState(
-  fixtureId
-) {
-  const id =
-    String(fixtureId);
+  const journey = journeys.get(id);
+  const state = states.get(id);
 
-  const journey =
-    journeys.get(id);
-
-  const state =
-    states.get(id);
-
-  if (
-    !journey ||
-    !state
-  ) {
+  if (!journey) {
     return null;
   }
 
   return {
     journey,
-
-    state: {
-      phase:
-        state.phase,
-
-      updated_at:
-        state.updated_at,
-
-      events:
-        state.events,
-    },
+    state: publicState(state),
   };
 }
 
-// ======================================================
+// ============================================================
+// EVENTOS
+// ============================================================
+
+function pushEvent(state, type, data = {}) {
+  state.eventCounter += 1;
+
+  const event = {
+    id: state.eventCounter,
+    type,
+    createdAt: new Date().toISOString(),
+    ...data,
+  };
+
+  state.events.push(event);
+
+  if (state.events.length > 500) {
+    state.events = state.events.slice(-500);
+  }
+
+  return event;
+}
+
+function audioEvent({
+  type,
+  audio = null,
+  text = null,
+  data = {},
+}) {
+  return {
+    type,
+    audio,
+    text,
+    ...data,
+  };
+}
+
+function publicState(state) {
+  if (!state) return null;
+
+  return {
+    fixtureId: state.fixtureId,
+    phase: state.phase,
+
+    openingPlayed: state.openingPlayed,
+    crowdStarted: state.crowdStarted,
+    halftimePlayed: state.halftimePlayed,
+    fulltimePlayed: state.fulltimePlayed,
+
+    lastMainScore: state.lastMainScore,
+    lastScoreboardAt: state.lastScoreboardAt,
+
+    updatedAt: state.updatedAt,
+
+    events: state.events,
+  };
+}
+
+function scoreKey(match) {
+  return `${scoreOf(match, "home")}-${scoreOf(match, "away")}`;
+}
+
+function spokenScore(match) {
+  const home = teamName(match, "home");
+  const away = teamName(match, "away");
+
+  const homeScore = scoreOf(match, "home");
+  const awayScore = scoreOf(match, "away");
+
+  return `${home} ${homeScore}, ${away} ${awayScore}`;
+}
+
+function publicMatch(match) {
+  if (!match) return null;
+
+  return {
+    id: idOf(match),
+
+    homeTeam: teamName(match, "home"),
+    awayTeam: teamName(match, "away"),
+
+    homeScore: scoreOf(match, "home"),
+    awayScore: scoreOf(match, "away"),
+
+    status:
+      match?.status ??
+      match?.fixture?.status?.short ??
+      null,
+
+    minute: minuteOf(match),
+
+    league: leagueName(match),
+
+    kickoff:
+      match?.event_date ??
+      match?.date ??
+      match?.fixture?.date ??
+      null,
+  };
+}
+
+function buildScoreboardText(matches = []) {
+  const live = matches.filter(isLive);
+
+  if (!live.length) {
+    return "Nenhuma outra partida ao vivo neste momento.";
+  }
+
+  return live
+    .slice(0, 10)
+    .map((match) => spokenScore(match))
+    .join(". ");
+}
+
+function phaseFor(mainMatch, journey, now) {
+  if (!mainMatch) {
+    return "waiting_source";
+  }
+
+  if (isFinished(mainMatch)) {
+    return "postgame";
+  }
+
+  if (isHalftime(mainMatch)) {
+    return "halftime";
+  }
+
+  if (isLive(mainMatch)) {
+    return "live";
+  }
+
+  const kickoff = kickoffOf(mainMatch);
+
+  if (!kickoff) {
+    return "scheduled";
+  }
+
+  const pregameStart = new Date(
+    kickoff.getTime() -
+      journey.pregameMinutes * 60 * 1000
+  );
+
+  if (now >= pregameStart && now < kickoff) {
+    return "pregame";
+  }
+
+  if (now < pregameStart) {
+    return "scheduled";
+  }
+
+  return "waiting_source";
+}
+
+// ============================================================
 // MOTOR PRINCIPAL
-// ======================================================
+// ============================================================
 
 export function updateRpfEngine({
   mainMatch,
   allMatches = [],
   now = new Date(),
 } = {}) {
+  const fixtureId = idOf(mainMatch);
 
-  if (!mainMatch) {
-    return null;
-  }
-
-  const fixtureId =
-    idOf(mainMatch);
-
-  const journey =
-    journeys.get(
-      fixtureId
-    );
-
-  // Jogo não cadastrado:
-  // motor não interfere.
-  if (
-    !journey ||
-    !journey.enabled
-  ) {
-    return null;
-  }
-
-  const state =
-    states.get(
-      fixtureId
-    ) ?? {
-      phase:
-        "scheduled",
-
-      previousScores:
-        new Map(),
-
-      lastScoreboardAt:
-        0,
-
-      events:
-        [],
-
-      updated_at:
-        null,
+  if (fixtureId === null || fixtureId === undefined) {
+    return {
+      ok: false,
+      reason: "fixture_not_found",
+      events: [],
     };
+  }
 
-  states.set(
-    fixtureId,
-    state
+  const id = String(fixtureId);
+
+  const journey = journeys.get(id);
+
+  if (!journey || !journey.enabled) {
+    return {
+      ok: false,
+      reason: "journey_not_active",
+      fixtureId: id,
+      priority: getRpfPriority(mainMatch),
+      events: [],
+    };
+  }
+
+  let state = states.get(id);
+
+  if (!state) {
+    createRpfJourney({
+      fixtureId: id,
+      priority: journey.priority,
+    });
+
+    state = states.get(id);
+  }
+
+  const generated = [];
+
+  const newPhase = phaseFor(
+    mainMatch,
+    journey,
+    now
   );
 
-  const newPhase =
-    phaseFor(
-      mainMatch,
-      journey,
-      now
-    );
+  state.phase = newPhase;
+  state.updatedAt = now.toISOString();
 
-  // ====================================================
-  // MUDANÇA DE FASE
-  // ====================================================
+  // ----------------------------------------------------------
+  // ABERTURA DA JORNADA - T-60
+  // ----------------------------------------------------------
 
   if (
-    newPhase !==
-    state.phase
+    newPhase === "pregame" &&
+    !state.openingPlayed
   ) {
-    state.phase =
-      newPhase;
+    state.openingPlayed = true;
 
-    // PRÉ-JOGO
-    if (
-      newPhase ===
-      "pregame"
-    ) {
+    generated.push(
       pushEvent(
         state,
-        audioEvent(
-          "JOURNEY_OPEN",
-          {
-            audio:
-              "/audio/rpf/" +
-              "rpf_vinheta_2_chamada_jornada.wav",
+        "JOURNEY_OPEN",
+        audioEvent({
+          type: "JOURNEY_OPEN",
+          audio:
+            "/audio/rpf/rpf_vinheta_2_chamada_jornada.wav",
 
-            message:
-              "Está no ar a " +
-              "RPF Jornada Esportiva.",
-          }
-        )
-      );
-    }
-
-    // COMEÇOU
-    if (
-      newPhase ===
-      "live"
-    ) {
-      pushEvent(
-        state,
-        audioEvent(
-          "CROWD_START",
-          {
-            audio:
-              "/audio/rpf/" +
-              "torcida_rpf_loop.mp3",
-
-            loop:
-              true,
-
-            fade_ms:
-              1200,
-          }
-        )
-      );
-    }
-
-    // INTERVALO
-    if (
-      newPhase ===
-      "halftime"
-    ) {
-      pushEvent(
-        state,
-        audioEvent(
-          "HALFTIME",
-          {
-            duck_crowd:
-              true,
-
-            message:
-              `Intervalo. ` +
-              `${spokenScore(mainMatch)}`,
-          }
-        )
-      );
-    }
-
-    // FIM DE JOGO
-    if (
-      newPhase ===
-      "postgame"
-    ) {
-      pushEvent(
-        state,
-        audioEvent(
-          "FULLTIME",
-          {
-            duck_crowd:
-              true,
-
-            message:
-              `Fim de jogo. ` +
-              `${spokenScore(mainMatch)}`,
-          }
-        )
-      );
-    }
-  }
-
-  // ====================================================
-  // TEMPO E PLACAR RPF
-  // ====================================================
-
-  if (
-    [
-      "live",
-      "halftime",
-    ].includes(newPhase) &&
-    (
-      now.getTime() -
-      state.lastScoreboardAt
-    ) >=
-    (
-      journey.config
-        .scoreboardEveryMinutes *
-      60 *
-      1000
-    )
-  ) {
-    const bulletin =
-      buildScoreboardText(
-        mainMatch,
-        allMatches,
-        now
-      );
-
-    pushEvent(
-      state,
-      audioEvent(
-        "TIME_AND_SCORE",
-        {
-          duck_crowd:
-            true,
-
-          intro_audio:
-            "/audio/rpf/" +
-            "rpf_vinheta_1_tempo_placar.wav",
-
-          ...bulletin,
-        }
+          text:
+            `RPF Jornada Esportiva. ` +
+            `${teamName(mainMatch, "home")} e ` +
+            `${teamName(mainMatch, "away")}.`,
+        })
       )
     );
-
-    state.lastScoreboardAt =
-      now.getTime();
   }
 
-  // ====================================================
-  // PLANTÃO RPF
-  // Detecta mudança REAL em OUTRA partida
-  // ====================================================
+  // ----------------------------------------------------------
+  // TORCIDA RPF
+  // ----------------------------------------------------------
 
-  for (
-    const match
-    of allMatches
+  if (
+    newPhase === "live" &&
+    !state.crowdStarted
   ) {
-    const otherId =
-      idOf(match);
+    state.crowdStarted = true;
+
+    generated.push(
+      pushEvent(
+        state,
+        "CROWD_START",
+        audioEvent({
+          type: "CROWD_START",
+          audio:
+            "/audio/rpf/torcida_rpf_loop.mp3",
+
+          text: null,
+        })
+      )
+    );
+  }
+
+  // ----------------------------------------------------------
+  // GOL DO JOGO PRINCIPAL
+  // ----------------------------------------------------------
+
+  const currentMainScore = scoreKey(mainMatch);
+
+  if (state.lastMainScore === null) {
+    state.lastMainScore = currentMainScore;
+  } else if (
+    isLive(mainMatch) &&
+    state.lastMainScore !== currentMainScore
+  ) {
+    const oldScore = state.lastMainScore
+      .split("-")
+      .map(Number);
+
+    const newHome = scoreOf(mainMatch, "home");
+    const newAway = scoreOf(mainMatch, "away");
+
+    const oldHome = oldScore[0] ?? 0;
+    const oldAway = oldScore[1] ?? 0;
+
+    let scoringTeam = null;
+
+    if (newHome > oldHome) {
+      scoringTeam = teamName(mainMatch, "home");
+    }
+
+    if (newAway > oldAway) {
+      scoringTeam = teamName(mainMatch, "away");
+    }
+
+    state.lastMainScore = currentMainScore;
+
+    generated.push(
+      pushEvent(state, "GOAL", {
+        match: publicMatch(mainMatch),
+        scoringTeam,
+        minute: minuteOf(mainMatch),
+
+        text:
+          scoringTeam
+            ? `Gol do ${scoringTeam}! ${spokenScore(mainMatch)}.`
+            : `Mudança no placar. ${spokenScore(mainMatch)}.`,
+      })
+    );
+  }
+
+  // ----------------------------------------------------------
+  // INTERVALO
+  // ----------------------------------------------------------
+
+  if (
+    newPhase === "halftime" &&
+    !state.halftimePlayed
+  ) {
+    state.halftimePlayed = true;
+
+    generated.push(
+      pushEvent(state, "HALFTIME", {
+        match: publicMatch(mainMatch),
+
+        text:
+          `Intervalo de jogo na RPF Jornada Esportiva. ` +
+          `${spokenScore(mainMatch)}.`,
+      })
+    );
+  }
+
+  // ----------------------------------------------------------
+  // FIM DE JOGO
+  // ----------------------------------------------------------
+
+  if (
+    newPhase === "postgame" &&
+    !state.fulltimePlayed
+  ) {
+    state.fulltimePlayed = true;
+
+    generated.push(
+      pushEvent(state, "FULLTIME", {
+        match: publicMatch(mainMatch),
+
+        text:
+          `Fim de jogo na RPF Jornada Esportiva. ` +
+          `${spokenScore(mainMatch)}.`,
+      })
+    );
+  }
+
+  // ----------------------------------------------------------
+  // TEMPO E PLACAR RPF
+  // ----------------------------------------------------------
+
+  if (newPhase === "live") {
+    const intervalMs =
+      journey.timeAndScoreMinutes *
+      60 *
+      1000;
+
+    const last =
+      state.lastScoreboardAt
+        ? new Date(
+            state.lastScoreboardAt
+          ).getTime()
+        : 0;
 
     if (
-      !otherId ||
-      otherId === fixtureId
+      !last ||
+      now.getTime() - last >= intervalMs
+    ) {
+      state.lastScoreboardAt =
+        now.toISOString();
+
+      generated.push(
+        pushEvent(
+          state,
+          "TIME_AND_SCORE",
+          audioEvent({
+            type: "TIME_AND_SCORE",
+
+            audio:
+              "/audio/rpf/rpf_vinheta_1_tempo_placar.wav",
+
+            text:
+              `Tempo e Placar RPF. ` +
+              `${spokenScore(mainMatch)}. ` +
+              buildScoreboardText(allMatches),
+
+            data: {
+              mainMatch:
+                publicMatch(mainMatch),
+            },
+          })
+        )
+      );
+    }
+  }
+
+  // ----------------------------------------------------------
+  // PLANTÃO RPF
+  // Outros jogos ao vivo
+  // ----------------------------------------------------------
+
+  for (const match of allMatches) {
+    const otherId = idOf(match);
+
+    if (
+      otherId === null ||
+      otherId === undefined
     ) {
       continue;
     }
 
-    const currentKey =
-      scoreKey(match);
-
-    const previousKey =
-      state.previousScores
-        .get(otherId);
-
     if (
-      previousKey &&
-      previousKey !==
-        currentKey &&
-      (
-        isLive(match) ||
-        isHalftime(match)
-      )
+      String(otherId) === id
     ) {
-      const oldScore =
-        previousKey
-          .split(":")
-          .slice(0, 2)
-          .join(":");
-
-      const newScore =
-        currentKey
-          .split(":")
-          .slice(0, 2)
-          .join(":");
-
-      if (
-        oldScore !==
-        newScore
-      ) {
-        pushEvent(
-          state,
-          audioEvent(
-            "RPF_BREAKING",
-            {
-              duck_crowd:
-                true,
-
-              message:
-                "Plantão RPF. " +
-                "Alteração no placar. " +
-                `${leagueName(match)}. ` +
-                `${spokenScore(match)}`,
-
-              match:
-                publicMatch(match),
-            }
-          )
-        );
-      }
+      continue;
     }
 
-    state.previousScores.set(
-      otherId,
-      currentKey
-    );
+    if (!isLive(match)) {
+      continue;
+    }
+
+    const otherKey = String(otherId);
+    const currentScore = scoreKey(match);
+
+    if (
+      !state.otherScores.has(otherKey)
+    ) {
+      state.otherScores.set(
+        otherKey,
+        currentScore
+      );
+
+      continue;
+    }
+
+    const previousScore =
+      state.otherScores.get(otherKey);
+
+    if (
+      previousScore !== currentScore
+    ) {
+      state.otherScores.set(
+        otherKey,
+        currentScore
+      );
+
+      generated.push(
+        pushEvent(
+          state,
+          "RPF_BREAKING",
+          audioEvent({
+            type: "RPF_BREAKING",
+
+            text:
+              `Plantão RPF! Mudança no placar. ` +
+              `${spokenScore(match)}.`,
+
+            data: {
+              match:
+                publicMatch(match),
+            },
+          })
+        )
+      );
+    }
   }
 
-  state.updated_at =
-    now.toISOString();
-
   return {
-    fixture:
-      publicMatch(
-        mainMatch
-      ),
+    ok: true,
 
-    journey,
+    fixtureId: id,
 
-    phase:
-      state.phase,
+    priority:
+      journey.priority ??
+      getRpfPriority(mainMatch),
 
-    events:
-      state.events,
+    phase: state.phase,
 
-    updated_at:
-      state.updated_at,
+    match:
+      publicMatch(mainMatch),
+
+    generatedEvents: generated,
+
+    state: publicState(state),
   };
 }
 
-// ======================================================
-// PEGAR NOVOS EVENTOS
-// ======================================================
+// ============================================================
+// CONSUMIR EVENTOS
+// ============================================================
 
 export function consumeRpfEvents(
   fixtureId,
   afterId = null
 ) {
-  const state =
-    states.get(
-      String(fixtureId)
-    );
+  const id = String(fixtureId);
+  const state = states.get(id);
 
   if (!state) {
     return [];
   }
 
-  if (!afterId) {
-    return state.events;
+  if (
+    afterId === null ||
+    afterId === undefined
+  ) {
+    return [...state.events];
   }
 
-  const index =
-    state.events.findIndex(
-      (event) =>
-        event.id === afterId
-    );
+  const parsed = Number(afterId);
 
-  return index >= 0
-    ? state.events.slice(
-        index + 1
-      )
-    : state.events;
+  return state.events.filter(
+    (event) =>
+      Number(event.id) > parsed
+  );
 }
 
-// ======================================================
-// INFORMAÇÕES DO MOTOR
-// ======================================================
+// ============================================================
+// INFORMAÇÕES PÚBLICAS DO MOTOR
+// ============================================================
 
 export const RPF_ENGINE_INFO = {
-  name:
-    "Motor RPF",
-
-  version:
-    "1.0.0",
+  name: "Motor RPF",
+  version: "1.1.0",
 
   priorities: {
-    A:
-      "Grêmio / Internacional / Chelsea",
+    A: "Grêmio / Internacional / Chelsea",
+    B: "RPF Interior / jogos especiais",
+    normal: "Demais jogos no RPF Placar",
+  },
 
-    B:
-      "RPF Interior / jogos especiais",
+  priorityTeams: {
+    A: [
+      "Grêmio",
+      "Internacional",
+      "Chelsea",
+    ],
 
-    normal:
-      "Demais jogos no RPF Placar",
+    B: [
+      "Brasil de Pelotas",
+      "Pelotas",
+      "Gramadense",
+      "Veranópolis",
+    ],
   },
 
   modes: [
@@ -1223,10 +1057,10 @@ export const RPF_ENGINE_INFO = {
     "Momentos do Jogo",
   ],
 
-  narration:
-    false,
+  narration: false,
+
+  automaticActivation: false,
 
   rule:
-    "O motor somente reage a dados reais " +
-    "recebidos das fontes esportivas.",
+    "O motor somente reage a dados reais recebidos das fontes esportivas.",
 };
