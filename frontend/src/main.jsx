@@ -3202,9 +3202,29 @@ function App() {
           ? data.response
           : Array.isArray(data?.resposta)
           ? data.resposta
+          : Array.isArray(data?.journeys)
+          ? data.journeys
           : [];
 
-        setRpfJourneys(list);
+        // Aceita o formato normal da API e também nomes exibidos
+        // traduzidos pelo navegador. Só mantém Jornadas realmente ativas.
+        const activeJourneys = list.filter((journey) => {
+          const enabled = firstValue(
+            journey?.enabled,
+            journey?.ativado,
+            journey?.active,
+            journey?.ativo,
+            true
+          );
+
+          return (
+            enabled === true ||
+            String(enabled).toLowerCase() === "true" ||
+            String(enabled).toLowerCase() === "verdadeiro"
+          );
+        });
+
+        setRpfJourneys(activeJourneys);
       } catch (error) {
         console.error("Erro ao carregar Jornadas RPF:", error);
       }
@@ -3224,8 +3244,15 @@ function App() {
 
     for (const journey of rpfJourneys) {
       const fixtureId = String(
-        firstValue(journey?.fixtureId, journey?.fixture_id, journey?.id, "")
-      );
+        firstValue(
+          journey?.fixtureId,
+          journey?.fixture_id,
+          journey?.eventId,
+          journey?.event_id,
+          journey?.id,
+          ""
+        )
+      ).trim();
 
       if (fixtureId) map.set(fixtureId, journey);
     }
