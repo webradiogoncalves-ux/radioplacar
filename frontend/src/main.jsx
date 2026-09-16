@@ -965,22 +965,6 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
     )
     .slice(0, 8);
 
-  const groups = useMemo(() => {
-    const map = new Map();
-
-    for (const match of matches) {
-      const league = getLeagueName(match);
-
-      if (!map.has(league)) {
-        map.set(league, []);
-      }
-
-      map.get(league).push(match);
-    }
-
-    return Array.from(map.entries());
-  }, [matches]);
-
   return (
     <main className="screen home-screen rpf-home">
 
@@ -1212,83 +1196,6 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
     })}
   </div>
 )}
-        {groups.length === 0 ? (
-          <div className="empty-card">
-            Nenhum campeonato encontrado.
-          </div>
-        ) : (
-          <div className="rpf-league-grid">
-            {groups.map(([league, leagueMatches]) => {
-              const example = leagueMatches[0];
-
-              return (
-                <button
-                  type="button"
-                  key={league}
-                  className="rpf-league-card"
-                  onClick={() =>
-                    onOpenCompetition({
-                      id: getLeagueId(example),
-                      name: league,
-                      example,
-                    })
-                  }
-                >
-                  <div className="rpf-league-logo">
-                    <LeagueBadge match={example} />
-                  </div>
-
-                  <div className="rpf-league-info">
-                    <strong>{league}</strong>
-
-                    <span>
-                      {leagueMatches.length}{" "}
-                      {leagueMatches.length === 1
-                        ? "partida"
-                        : "partidas"}
-                    </span>
-                  </div>
-
-                  <div className="rpf-league-next">
-                    {leagueMatches[0] && (
-                      <>
-                        <span>
-                          {abbreviation(
-                            getHomeName(
-                              leagueMatches[0]
-                            )
-                          )}
-                        </span>
-
-                        <strong>
-                          {hasScore(leagueMatches[0])
-                            ? `${getHomeScore(
-                                leagueMatches[0]
-                              )} - ${getAwayScore(
-                                leagueMatches[0]
-                              )}`
-                            : formatTime(
-                                leagueMatches[0]
-                              )}
-                        </strong>
-
-                        <span>
-                          {abbreviation(
-                            getAwayName(
-                              leagueMatches[0]
-                            )
-                          )}
-                        </span>
-                      </>
-                    )}
-                  </div>
-
-                  <ChevronRight size={18} />
-                </button>
-              );
-            })}
-          </div>
-        )}
       </section>
 
 
@@ -1938,6 +1845,8 @@ function CompetitionScreen({
    */
   const seasonId = firstValue(
     competition?.season_id,
+    competition?.current_season?.id,
+    competition?.temporada_atual?.id,
     competition?.season?.id,
     String(leagueId) === "9" ? 28 : null
   );
@@ -1946,6 +1855,7 @@ function CompetitionScreen({
     ...competition,
     league_id: leagueId,
     season_id: seasonId,
+  };
 
   const leagueName = String(
     firstValue(
@@ -2077,6 +1987,8 @@ function StandingsPlaceholder({ competition }) {
 
   const seasonId = firstValue(
     competition?.season_id,
+    competition?.current_season?.id,
+    competition?.temporada_atual?.id,
     competition?.season?.id
   );
 
