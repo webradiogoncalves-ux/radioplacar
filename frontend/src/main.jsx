@@ -1946,7 +1946,6 @@ function CompetitionScreen({
     ...competition,
     league_id: leagueId,
     season_id: seasonId,
-  };
 
   const leagueName = String(
     firstValue(
