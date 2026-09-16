@@ -1986,6 +1986,17 @@ function RPFJornadaPlayer({ match }) {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const crowdAudioRef = useRef(null);
   const stingerAudioRef = useRef(null);
+  const playedMotorEventsRef = useRef(new Set());
+  const audioEnabledRef = useRef(false);
+  const latestEventsRef = useRef([]);
+
+  useEffect(() => {
+    audioEnabledRef.current = audioEnabled;
+  }, [audioEnabled]);
+
+  useEffect(() => {
+    latestEventsRef.current = engineEvents;
+  }, [engineEvents]);
 
   useEffect(() => {
     if (!registered || !id) {
@@ -2050,10 +2061,13 @@ function RPFJornadaPlayer({ match }) {
   useEffect(() => {
     const crowd = crowdAudioRef.current;
     if (!crowd) return;
+
     if (audioEnabled && livePhase) {
       crowd.volume = 0.22;
       crowd.loop = true;
-      crowd.play().catch(() => {});
+      crowd.play().catch((audioError) => {
+        console.warn("RPF: torcida não iniciou", audioError);
+      });
     } else {
       crowd.pause();
     }
@@ -2076,14 +2090,151 @@ function RPFJornadaPlayer({ match }) {
   const preGame = kickoff && !Number.isNaN(kickoff.getTime()) ? new Date(kickoff.getTime() - 60 * 60 * 1000) : null;
   const preGameText = preGame ? preGame.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "60 min antes";
 
-  function playStinger(path) {
-    if (!audioEnabled || !stingerAudioRef.current) return;
-    stingerAudioRef.current.pause();
-    stingerAudioRef.current.src = `${API_URL}${path}`;
-    stingerAudioRef.current.currentTime = 0;
-    stingerAudioRef.current.volume = 0.9;
-    stingerAudioRef.current.play().catch(() => {});
+  function motorAudioUrl(path) {
+    if (!path) return "";
+    if (/^https?:\\/\\//i.test(String(path))) return String(path);
+    return `${API_URL}${String(path).startsWith("/") ? "" : "/"}${path}`;
   }
+
+  function speakMotorText(text) {
+    if (!audioEnabledRef.current || !text || !("speechSynthesis" in window)) return;
+
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(String(text));
+      utterance.lang = "pt-BR";
+      utterance.rate = 1.03;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+      window.speechSynthesis.speak(utterance);
+    } catch (speechError) {
+      console.warn("RPF: TTS indisponível", speechError);
+    }
+  }
+
+  function playStinger(path, afterText = "") {
+    if (!audioEnabledRef.current || !stingerAudioRef.current || !path) return;
+
+    const audio = stingerAudioRef.current;
+    const crowd = crowdAudioRef.current;
+
+    try {
+      audio.pause();
+      audio.src = motorAudioUrl(path);
+      audio.currentTime = 0;
+      audio.volume = 0.95;
+
+      if (crowd && !crowd.paused) crowd.volume = 0.07;
+
+      audio.onended = () => {
+        if (crowd && audioEnabledRef.current && livePhase) crowd.volume = 0.22;
+        if (afterText) window.setTimeout(() => speakMotorText(afterText), 180);
+      };
+
+      audio.onerror = () => {
+        console.warn("RPF: arquivo de áudio não carregou:", audio.src);
+        if (crowd && audioEnabledRef.current && livePhase) crowd.volume = 0.22;
+        if (afterText) speakMotorText(afterText);
+      };
+
+      audio.play().catch((audioError) => {
+        console.warn("RPF: reprodução bloqueada/indisponível", audioError);
+        if (crowd && audioEnabledRef.current && livePhase) crowd.volume = 0.22;
+        if (afterText) speakMotorText(afterText);
+      });
+    } catch (audioError) {
+      console.warn("RPF: erro ao tocar vinheta", audioError);
+      if (afterText) speakMotorText(afterText);
+    }
+  }
+
+  function motorEventId(event, index = 0) {
+    return String(firstValue(
+      event?.id,
+      event?.event_id,
+      event?.eventId,
+      `${firstValue(event?.type, event?.tipo, "evento")}-${firstValue(event?.createdAt, event?.criadoEm, index)}`
+    ));
+  }
+
+  function motorEventType(event) {
+    return normalizeText(firstValue(event?.type, event?.tipo, event?.name, "")).toUpperCase();
+  }
+
+  function handleMotorEventAudio(event, index = 0) {
+    if (!audioEnabledRef.current || !event) return;
+
+    const eventId = motorEventId(event, index);
+    if (playedMotorEventsRef.current.has(eventId)) return;
+    playedMotorEventsRef.current.add(eventId);
+
+    const type = motorEventType(event);
+    const path = firstValue(event?.audio, event?.audioPath, event?.audio_path, event?.payload?.audio, "");
+    const text = firstValue(event?.text, event?.texto, event?.message, event?.mensagem, event?.payload?.text, "");
+
+    if (type.includes("CROWD_START") || type.includes("PUBLICO_INICIADO")) {
+      const crowd = crowdAudioRef.current;
+      if (crowd && livePhase) {
+        crowd.volume = 0.22;
+        crowd.loop = true;
+        crowd.play().catch((audioError) => console.warn("RPF: torcida bloqueada", audioError));
+      }
+      return;
+    }
+
+    // Vinheta primeiro; depois o texto dinâmico do Motor RPF.
+    if (path) {
+      playStinger(path, text);
+    } else if (text) {
+      speakMotorText(text);
+    }
+  }
+
+  function enableRpfAudio() {
+    const next = !audioEnabled;
+
+    if (!next) {
+      setAudioEnabled(false);
+      if (crowdAudioRef.current) crowdAudioRef.current.pause();
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      return;
+    }
+
+    // O clique do usuário libera o áudio no navegador/celular.
+    audioEnabledRef.current = true;
+    setAudioEnabled(true);
+
+    const crowd = crowdAudioRef.current;
+    if (crowd && livePhase) {
+      crowd.volume = 0.22;
+      crowd.loop = true;
+      crowd.play().catch((audioError) => console.warn("RPF: torcida não iniciou no clique", audioError));
+    }
+
+    // Não toca toda a abertura antiga. Ao ativar no meio do jogo,
+    // reproduz somente o evento RPF mais recente que tenha áudio/texto.
+    const newest = latestEventsRef.current.find((event) =>
+      Boolean(firstValue(event?.audio, event?.audioPath, event?.audio_path, event?.text, event?.texto))
+    );
+
+    if (newest) {
+      playedMotorEventsRef.current.add(motorEventId(newest, 0));
+      const path = firstValue(newest?.audio, newest?.audioPath, newest?.audio_path, "");
+      const text = firstValue(newest?.text, newest?.texto, newest?.message, newest?.mensagem, "");
+      if (path) playStinger(path, text);
+      else if (text) speakMotorText(text);
+    }
+  }
+
+  useEffect(() => {
+    if (!audioEnabled || !engineEvents.length) return;
+
+    // engineEvents está do mais novo para o mais antigo.
+    // Processamos em ordem cronológica e ignoramos o que já tocou.
+    [...engineEvents]
+      .reverse()
+      .forEach((event, index) => handleMotorEventAudio(event, index));
+  }, [engineEvents, audioEnabled, livePhase]);
 
   const panelStyle = {
     margin: "14px 0", border: "1px solid rgba(68,255,142,.35)", borderRadius: 22,
@@ -2095,8 +2246,8 @@ function RPFJornadaPlayer({ match }) {
 
   return (
     <section className="rpf-jornada is-on" style={panelStyle}>
-      <audio ref={crowdAudioRef} preload="none" src={`${API_URL}/audio/rpf/torcida_rpf_loop.mp3`} />
-      <audio ref={stingerAudioRef} preload="none" />
+      <audio ref={crowdAudioRef} preload="auto" src={`${API_URL}/audio/rpf/torcida_rpf_loop.mp3`} />
+      <audio ref={stingerAudioRef} preload="auto" />
 
       <div style={topStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -2125,7 +2276,7 @@ function RPFJornadaPlayer({ match }) {
       </div>
 
       <div style={{ padding: "13px 16px", display: "flex", gap: 8, flexWrap: "wrap", borderBottom: "1px solid rgba(255,255,255,.07)" }}>
-        <button type="button" onClick={() => setAudioEnabled((v) => !v)} style={{ border: 0, borderRadius: 12, padding: "10px 12px", fontWeight: 900, cursor: "pointer", background: audioEnabled ? green : "rgba(255,255,255,.09)", color: audioEnabled ? "#05110a" : "#fff" }}>
+        <button type="button" onClick={enableRpfAudio} style={{ border: 0, borderRadius: 12, padding: "10px 12px", fontWeight: 900, cursor: "pointer", background: audioEnabled ? green : "rgba(255,255,255,.09)", color: audioEnabled ? "#05110a" : "#fff" }}>
           {audioEnabled ? "🔊 ÁUDIO RPF ATIVO" : "🔇 ATIVAR ÁUDIO RPF"}
         </button>
         <button type="button" disabled={!audioEnabled} onClick={() => playStinger("/audio/rpf/rpf_vinheta_2_chamada_jornada.wav")} style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 12, padding: "10px 12px", fontWeight: 800, background: "rgba(255,255,255,.06)", color: "#fff", opacity: audioEnabled ? 1 : .45 }}>VINHETA</button>
