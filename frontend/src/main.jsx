@@ -1958,6 +1958,9 @@ function RPFJornadaPlayer({ match }) {
   const [engineState, setEngineState] = useState(null);
   const [engineEvents, setEngineEvents] = useState([]);
   const [error, setError] = useState("");
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const crowdAudioRef = useRef(null);
+  const stingerAudioRef = useRef(null);
 
   useEffect(() => {
     if (!registered || !id) {
@@ -1973,39 +1976,26 @@ function RPFJornadaPlayer({ match }) {
     async function loadJourney() {
       try {
         const [stateResponse, eventsResponse] = await Promise.all([
-          fetch(`${API_URL}/api/rpf/jornada/${encodeURIComponent(id)}`, {
-            cache: "no-store",
-          }),
-          fetch(`${API_URL}/api/rpf/jornada/${encodeURIComponent(id)}/eventos`, {
-            cache: "no-store",
-          }),
+          fetch(`${API_URL}/api/rpf/jornada/${encodeURIComponent(id)}`, { cache: "no-store" }),
+          fetch(`${API_URL}/api/rpf/jornada/${encodeURIComponent(id)}/eventos`, { cache: "no-store" }),
         ]);
 
-        if (!stateResponse.ok) {
-          throw new Error(`Motor RPF respondeu ${stateResponse.status}`);
-        }
+        if (!stateResponse.ok) throw new Error(`Motor RPF respondeu ${stateResponse.status}`);
 
         const stateData = await stateResponse.json();
         const eventsData = eventsResponse.ok ? await eventsResponse.json() : null;
-
         if (cancelled) return;
 
-        const statePayload = stateData?.response ?? stateData;
-        const eventsPayload = eventsData?.response ?? eventsData;
-
+        const statePayload = stateData?.response ?? stateData?.resposta ?? stateData;
+        const eventsPayload = eventsData?.response ?? eventsData?.resposta ?? eventsData;
         setEngineState(statePayload);
 
         const eventCandidates = [
-          eventsPayload?.events,
-          eventsPayload?.eventos,
-          eventsPayload?.generatedEvents,
-          eventsPayload?.EventosGerados,
-          statePayload?.generatedEvents,
-          statePayload?.EventosGerados,
-          statePayload?.state?.events,
-          statePayload?.state?.eventos,
+          eventsPayload?.events, eventsPayload?.eventos,
+          eventsPayload?.generatedEvents, eventsPayload?.EventosGerados,
+          statePayload?.generatedEvents, statePayload?.EventosGerados,
+          statePayload?.state?.events, statePayload?.state?.eventos,
         ];
-
         const foundEvents = eventCandidates.find(Array.isArray) || [];
         setEngineEvents(foundEvents.slice().reverse().slice(0, 20));
         setError("");
@@ -2021,117 +2011,130 @@ function RPFJornadaPlayer({ match }) {
 
     loadJourney();
     const timer = window.setInterval(loadJourney, 12000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [id, registered]);
+
+  const phase = firstValue(
+    engineState?.phase, engineState?.fase,
+    engineState?.state?.phase, engineState?.state?.fase,
+    "scheduled"
+  );
+  const phaseLabel = rpfPhaseLabel(phase);
+  const livePhase = phaseLabel === "AO VIVO";
+
+  useEffect(() => {
+    const crowd = crowdAudioRef.current;
+    if (!crowd) return;
+    if (audioEnabled && livePhase) {
+      crowd.volume = 0.22;
+      crowd.loop = true;
+      crowd.play().catch(() => {});
+    } else {
+      crowd.pause();
+    }
+  }, [audioEnabled, livePhase]);
 
   if (!registered) return null;
 
-  const phase = firstValue(
-    engineState?.phase,
-    engineState?.fase,
-    engineState?.state?.phase,
-    engineState?.state?.fase,
-    "scheduled"
+  const priority = firstValue(
+    engineState?.priority, engineState?.prioridade,
+    match?._rpfJourney?.priority, match?._rpfJourney?.prioridade, "RPF"
   );
 
-  const phaseLabel = rpfPhaseLabel(phase);
-  const priority = firstValue(
-    engineState?.priority,
-    engineState?.prioridade,
-    match?._rpfJourney?.priority,
-    match?._rpfJourney?.prioridade,
-    "RPF"
-  );
+  const motorMatch = engineState?.match || engineState?.partida || {};
+  const home = firstValue(motorMatch?.homeTeam, motorMatch?.home_team, getHomeName(match));
+  const away = firstValue(motorMatch?.awayTeam, motorMatch?.away_team, getAwayName(match));
+  const homeScore = firstValue(motorMatch?.homeScore, motorMatch?.home_score, getHomeScore(match), 0);
+  const awayScore = firstValue(motorMatch?.awayScore, motorMatch?.away_score, getAwayScore(match), 0);
+  const kickoffRaw = firstValue(motorMatch?.kickoff, motorMatch?.date, match?.fixture?.date, match?.date);
+  const kickoff = kickoffRaw ? new Date(kickoffRaw) : null;
+  const preGame = kickoff && !Number.isNaN(kickoff.getTime()) ? new Date(kickoff.getTime() - 60 * 60 * 1000) : null;
+  const preGameText = preGame ? preGame.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "60 min antes";
+
+  function playStinger(path) {
+    if (!audioEnabled || !stingerAudioRef.current) return;
+    stingerAudioRef.current.pause();
+    stingerAudioRef.current.src = `${API_URL}${path}`;
+    stingerAudioRef.current.currentTime = 0;
+    stingerAudioRef.current.volume = 0.9;
+    stingerAudioRef.current.play().catch(() => {});
+  }
+
+  const panelStyle = {
+    margin: "14px 0", border: "1px solid rgba(68,255,142,.35)", borderRadius: 22,
+    overflow: "hidden", background: "linear-gradient(145deg, rgba(2,28,24,.98), rgba(2,12,12,.98))",
+    boxShadow: "0 18px 48px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04)"
+  };
+  const topStyle = { padding: "16px 16px 13px", borderBottom: "1px solid rgba(255,255,255,.07)" };
+  const green = "#58ff91";
 
   return (
-    <section className="rpf-jornada is-on">
-      <div className="rpf-jornada-head">
-        <div className="rpf-jornada-mic">🎙️</div>
+    <section className="rpf-jornada is-on" style={panelStyle}>
+      <audio ref={crowdAudioRef} preload="none" src={`${API_URL}/audio/rpf/torcida_rpf_loop.mp3`} />
+      <audio ref={stingerAudioRef} preload="none" />
 
-        <div>
-          <small>MOTOR RPF • PRIORIDADE {priority}</small>
-          <h2>RPF Jornada Esportiva</h2>
+      <div style={topStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 15, display: "grid", placeItems: "center", fontSize: 24, background: "rgba(88,255,145,.12)", border: "1px solid rgba(88,255,145,.25)" }}>🎙️</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <small style={{ color: green, fontWeight: 900, letterSpacing: ".09em" }}>MOTOR RPF • PRIORIDADE {priority}</small>
+            <h2 style={{ margin: "3px 0 0", fontSize: 20 }}>RPF Jornada Esportiva</h2>
+          </div>
+          <span style={{ padding: "7px 10px", borderRadius: 999, fontSize: 11, fontWeight: 900, color: livePhase ? "#06120b" : green, background: livePhase ? green : "rgba(88,255,145,.10)", border: "1px solid rgba(88,255,145,.30)" }}>{phaseLabel}</span>
         </div>
 
-        <span className={`rpf-jornada-badge phase-${String(phaseLabel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}>
-          {phaseLabel}
-        </span>
+        <div style={{ marginTop: 15, padding: "13px 12px", borderRadius: 16, background: "rgba(0,0,0,.24)", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 10 }}>
+          <div style={{ textAlign: "left" }}><strong style={{ display: "block", fontSize: 15 }}>{home}</strong><small style={{ opacity: .6 }}>{abbreviation(home)}</small></div>
+          <div style={{ textAlign: "center" }}><strong style={{ color: green, fontSize: 27, letterSpacing: ".05em" }}>{homeScore} - {awayScore}</strong><small style={{ display: "block", opacity: .65, marginTop: 2 }}>{phaseLabel}</small></div>
+          <div style={{ textAlign: "right" }}><strong style={{ display: "block", fontSize: 15 }}>{away}</strong><small style={{ opacity: .6 }}>{abbreviation(away)}</small></div>
+        </div>
+
+        <p style={{ margin: "12px 1px 0", lineHeight: 1.45, opacity: .82, fontSize: 13 }}>
+          {loading ? "Conectando ao Motor RPF..." : error ? error :
+           phaseLabel === "PROGRAMADA" ? `Jornada confirmada. A transmissão abre às ${preGameText}.` :
+           phaseLabel === "PRÉ-JOGO" ? "Pré-jogo RPF no ar. Contagem regressiva para a bola rolar." :
+           livePhase ? "Jornada no ar. Torcida RPF, Tempo e Placar, Plantão RPF e momentos confirmados." :
+           phaseLabel === "INTERVALO" ? "Intervalo de jogo na RPF Jornada Esportiva." :
+           phaseLabel === "FIM DE JOGO" ? "Fim de jogo. Pós-jogo RPF em preparação." : "Pós-jogo RPF em andamento."}
+        </p>
       </div>
 
-      <p className="rpf-jornada-line">
-        {loading
-          ? "Conectando ao Motor RPF..."
-          : error
-          ? error
-          : phaseLabel === "PROGRAMADA"
-          ? `Jornada registrada. O pré-jogo começa 60 minutos antes de ${getHomeName(match)} x ${getAwayName(match)}.`
-          : phaseLabel === "PRÉ-JOGO"
-          ? "Pré-jogo RPF no ar. Acompanhamento automático do Motor RPF."
-          : phaseLabel === "AO VIVO"
-          ? "Jornada no ar com Torcida RPF, Tempo e Placar, Plantão RPF e eventos reais da partida."
-          : phaseLabel === "INTERVALO"
-          ? "Intervalo de jogo na RPF Jornada Esportiva."
-          : phaseLabel === "FIM DE JOGO"
-          ? "Fim de jogo. O Motor RPF prepara o pós-jogo."
-          : "Pós-jogo RPF em andamento."}
-      </p>
-
-      <div className="rpf-jornada-actions">
-        <span className="rpf-jornada-engine-status">
-          <span className="rpf-audio-pulse" />
-          MOTOR RPF CONECTADO
-        </span>
+      <div style={{ padding: "13px 16px", display: "flex", gap: 8, flexWrap: "wrap", borderBottom: "1px solid rgba(255,255,255,.07)" }}>
+        <button type="button" onClick={() => setAudioEnabled((v) => !v)} style={{ border: 0, borderRadius: 12, padding: "10px 12px", fontWeight: 900, cursor: "pointer", background: audioEnabled ? green : "rgba(255,255,255,.09)", color: audioEnabled ? "#05110a" : "#fff" }}>
+          {audioEnabled ? "🔊 ÁUDIO RPF ATIVO" : "🔇 ATIVAR ÁUDIO RPF"}
+        </button>
+        <button type="button" disabled={!audioEnabled} onClick={() => playStinger("/audio/rpf/rpf_vinheta_2_chamada_jornada.wav")} style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 12, padding: "10px 12px", fontWeight: 800, background: "rgba(255,255,255,.06)", color: "#fff", opacity: audioEnabled ? 1 : .45 }}>VINHETA</button>
+        <button type="button" disabled={!audioEnabled} onClick={() => playStinger("/audio/rpf/rpf_vinheta_1_tempo_placar.wav")} style={{ border: "1px solid rgba(255,255,255,.10)", borderRadius: 12, padding: "10px 12px", fontWeight: 800, background: "rgba(255,255,255,.06)", color: "#fff", opacity: audioEnabled ? 1 : .45 }}>TEMPO E PLACAR</button>
       </div>
 
-      <div className="rpf-jornada-moments">
-        <div className="rpf-jornada-moments-title">
-          <strong>MOMENTOS DO JOGO</strong>
-          <small>Somente eventos confirmados</small>
+      <div style={{ padding: "15px 16px 16px" }}>
+        <div style={{ display: "flex", alignItems: "end", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+          <strong style={{ fontSize: 13, letterSpacing: ".08em" }}>MOMENTOS DO JOGO</strong>
+          <small style={{ color: green }}>● SOMENTE EVENTOS CONFIRMADOS</small>
         </div>
 
         {engineEvents.length === 0 ? (
-          <div className="rpf-jornada-empty-event">
-            {phaseLabel === "PROGRAMADA"
-              ? "Os momentos aparecerão aqui quando a Jornada começar."
-              : "Aguardando o próximo evento confirmado pelo Motor RPF."}
+          <div style={{ padding: "14px", borderRadius: 14, background: "rgba(255,255,255,.045)", opacity: .7, fontSize: 13 }}>
+            {phaseLabel === "PROGRAMADA" ? "Os momentos aparecerão aqui quando a Jornada começar." : "Aguardando o próximo evento confirmado pelo Motor RPF."}
           </div>
         ) : (
-          <div className="rpf-jornada-event-list">
+          <div style={{ display: "grid", gap: 8 }}>
             {engineEvents.map((event, index) => {
-              const minute = firstValue(
-                event?.minute,
-                event?.minuto,
-                event?.payload?.minute,
-                event?.payload?.minuto
-              );
-
+              const minute = firstValue(event?.minute, event?.minuto, event?.payload?.minute, event?.payload?.minuto);
               return (
-                <article
-                  className="rpf-jornada-event"
-                  key={`${eventFingerprint(event, index)}-${index}`}
-                >
-                  <div>
-                    <strong>{rpfEventLabel(event)}</strong>
-                    <p>{rpfEventText(event)}</p>
-                  </div>
-
-                  {minute !== null && minute !== undefined && minute !== "" && (
-                    <span>{minute}'</span>
-                  )}
+                <article key={`${eventFingerprint(event, index)}-${index}`} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "11px 12px", borderRadius: 14, background: "rgba(255,255,255,.045)", borderLeft: `3px solid ${green}` }}>
+                  <div><strong style={{ fontSize: 13 }}>{rpfEventLabel(event)}</strong><p style={{ margin: "3px 0 0", opacity: .72, fontSize: 12 }}>{rpfEventText(event)}</p></div>
+                  {minute !== null && minute !== undefined && minute !== "" && <span style={{ color: green, fontWeight: 900 }}>{minute}'</span>}
                 </article>
               );
             })}
           </div>
         )}
-      </div>
 
-      <small className="rpf-jornada-note">
-        A Jornada não inventa lances. O Motor RPF reage somente aos dados reais recebidos das fontes esportivas.
-      </small>
+        <small style={{ display: "block", marginTop: 12, opacity: .48, lineHeight: 1.4 }}>
+          Sem narração contínua: o Motor RPF reage somente a dados reais confirmados pelas fontes esportivas.
+        </small>
+      </div>
     </section>
   );
 }
