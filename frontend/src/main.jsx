@@ -1144,11 +1144,10 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
             <h2>Por campeonato</h2>
           </div>
 
-          <CalendarDays size={21} />
+         <CalendarDays size={21} />
 </div>
-             
-<div className="rpf-league-grid">
-  {competitionsLoading ? (
+
+{competitionsLoading ? (
   <div className="loading-card">
     Carregando campeonatos...
   </div>
