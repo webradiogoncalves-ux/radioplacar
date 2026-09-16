@@ -1144,7 +1144,12 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
             <h2>Por campeonato</h2>
           </div>
 
-          <CalendarDays size={21} /
+          <CalendarDays size={21} />
+</div>
+
+{competitionsLoading ? (
+  <div className="loading-card">
+             
 <div className="rpf-league-grid">
   {competitionsLoading ? (
   <div className="loading-card">
