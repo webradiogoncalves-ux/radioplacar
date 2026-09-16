@@ -2204,6 +2204,125 @@ app.get(
     });
   }
 );
+// ============================================================
+// RPF JORNADA - ATIVAÇÃO PELO NAVEGADOR
+// ============================================================
+
+app.get(
+  "/api/rpf/jornada/:fixtureId/ativar",
+  async (req, res) => {
+    try {
+      const fixtureId = Number(req.params.fixtureId);
+
+      if (!Number.isFinite(fixtureId)) {
+        return res.status(400).json({
+          ok: false,
+          error: "fixtureId inválido",
+        });
+      }
+
+      const date =
+        req.query.date ||
+        brasilDate();
+
+      const matches =
+        await getAllMatches(date);
+
+      const match =
+        matches.find(
+          (item) =>
+            Number(
+              item?.id ??
+              item?.fixture_id ??
+              item?.event_id
+            ) === fixtureId
+        );
+
+      if (!match) {
+        return res.status(404).json({
+          ok: false,
+          error: "Partida não encontrada na BSD",
+          fixtureId,
+          date,
+        });
+      }
+
+      const priority =
+        getRpfPriority(match) ||
+        "NORMAL";
+
+      const home =
+        typeof match.home_team === "string"
+          ? match.home_team
+          : match.home_team?.name ||
+            match.home_team_name ||
+            "Mandante";
+
+      const away =
+        typeof match.away_team === "string"
+          ? match.away_team
+          : match.away_team?.name ||
+            match.away_team_name ||
+            "Visitante";
+
+      const journey =
+        createRpfJourney({
+          fixtureId,
+          title: `${home} x ${away}`,
+          priority,
+        });
+
+      return res.json({
+        ok: true,
+
+        message:
+          "RPF Jornada Esportiva ativada",
+
+        fixtureId,
+
+        priority,
+
+        date,
+
+        match: {
+          home_team: home,
+          away_team: away,
+
+          kickoff:
+            match.event_date ??
+            match.date ??
+            null,
+
+          status:
+            match.status ??
+            null,
+        },
+
+        journey,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO GET /api/rpf/jornada/:fixtureId/ativar:",
+        error
+      );
+
+      return res
+        .status(error.status || 500)
+        .json({
+          ok: false,
+
+          error:
+            "Erro ao ativar RPF Jornada",
+
+          details:
+            error.message,
+
+          data:
+            error.data || null,
+        });
+    }
+  }
+);
 
 // ======================================================
 // 404
@@ -2252,63 +2371,4 @@ app.listen(PORT, () => {
     backgroundRadioMapper();
   }, 15 * 60 * 1000);
 });
-// ============================================================
-// RPF JORNADA - ATIVAÇÃO PELO NAVEGADOR
-// ============================================================
-
-app.get("/api/rpf/jornada/:fixtureId/ativar", async (req, res) => {
-  try {
-    const fixtureId = Number(req.params.fixtureId);
-
-    if (!Number.isFinite(fixtureId)) {
-      return res.status(400).json({
-        ok: false,
-        error: "fixtureId inválido",
-      });
-    }
-
-    // Busca as partidas do dia
-    const matches = await getAllMatches(brasilDate());
-
-    const match = matches.find(
-      (item) => Number(item.id) === fixtureId
-    );
-
-    if (!match) {
-      return res.status(404).json({
-        ok: false,
-        error: "Partida não encontrada na BSD",
-        fixtureId,
-      });
-    }
-
-    const priority = getRpfPriority(match) || "NORMAL";
-
-    const journey = createRpfJourney({
-      fixtureId,
-      priority,
-    });
-
-    return res.json({
-      ok: true,
-      message: "RPF Jornada Esportiva ativada",
-      fixtureId,
-      priority,
-      match: {
-        home_team: match.home_team,
-        away_team: match.away_team,
-        kickoff: match.event_date,
-        status: match.status,
-      },
-      journey,
-    });
-  } catch (error) {
-    console.error("Erro ao ativar RPF Jornada:", error);
-
-    return res.status(500).json({
-      ok: false,
-      error: "Erro ao ativar RPF Jornada",
-      details: error.message,
-    });
-  }
-});
+// ======================================================
