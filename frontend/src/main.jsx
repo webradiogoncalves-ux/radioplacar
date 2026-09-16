@@ -1276,18 +1276,59 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
               </div>
 
               <div className="rpf-three-copy">
-                <span>{item.category}</span>
-                <strong>{item.title}</strong>
-                <p>{item.text}</p>
+                <div className="rpf-three-category-row">
+                  <span>{item.category}</span>
+                  {item.match && (
+                    <small className={`rpf-three-status ${isLive(item.match) ? "live" : ""}`}>
+                      {matchStatus(item.match)}
+                    </small>
+                  )}
+                </div>
 
-                {item.match && (
-                  <small>
-                    {matchStatus(item.match)} • {getLeagueName(item.match)}
-                  </small>
+                {item.match ? (
+                  <>
+                    <div className="rpf-three-match">
+                      <div className="rpf-three-team">
+                        <TeamBadge
+                          name={getHomeName(item.match)}
+                          logo={getHomeLogo(item.match)}
+                          size="small"
+                        />
+                        <span>{abbreviation(getHomeName(item.match))}</span>
+                      </div>
+
+                      <div className="rpf-three-scorebox">
+                        <strong>
+                          {hasScore(item.match)
+                            ? `${getHomeScore(item.match)} - ${getAwayScore(item.match)}`
+                            : formatTime(item.match)}
+                        </strong>
+                        <small>{isLive(item.match) ? formatClock(item.match) : ""}</small>
+                      </div>
+
+                      <div className="rpf-three-team">
+                        <TeamBadge
+                          name={getAwayName(item.match)}
+                          logo={getAwayLogo(item.match)}
+                          size="small"
+                        />
+                        <span>{abbreviation(getAwayName(item.match))}</span>
+                      </div>
+                    </div>
+
+                    <strong className="rpf-three-title">{item.title}</strong>
+                    <p>{item.text}</p>
+                    <small className="rpf-three-league">{getLeagueName(item.match)}</small>
+                  </>
+                ) : (
+                  <>
+                    <strong className="rpf-three-title">{item.title}</strong>
+                    <p>{item.text}</p>
+                  </>
                 )}
               </div>
 
-              {item.match && <ChevronRight size={18} />}
+              {item.match && <ChevronRight className="rpf-three-arrow" size={18} />}
             </button>
           ))}
         </div>
