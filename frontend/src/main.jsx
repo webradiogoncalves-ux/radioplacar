@@ -679,6 +679,13 @@ function MatchCard({
         <span>{getLeagueName(match)}</span>
       </div>
 
+      {match?._rpfJourney && (
+        <div className="rpf-match-jornada-badge">
+          <span>🎙️ RPF JORNADA ESPORTIVA</span>
+          <small>Prioridade {match._rpfJourney?.priority || match._rpfJourney?.prioridade || "RPF"}</small>
+        </div>
+      )}
+
       <div className="rpf-match-footer">
         {radios.length > 0 ? (
           <div className="radio-confirmed">
@@ -974,7 +981,7 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
       normalizeText(getLeagueName(match)).toLowerCase();
 
     const brazilWords = [
-      "brasileiro", "brasileirao", "serie a", "serie b",
+      "brasileiro", "brasileirao", "brasileiro serie a", "brasileiro serie b",
       "copa do brasil", "brasil"
     ];
 
@@ -1901,191 +1908,229 @@ function narrationForEvent(event, match) {
   return null;
 }
 
+function rpfPhaseLabel(phase) {
+  const value = normalizeText(phase).toLowerCase();
+
+  if (value.includes("pre")) return "PRÉ-JOGO";
+  if (value.includes("live") || value.includes("ao vivo")) return "AO VIVO";
+  if (value.includes("half") || value.includes("interval")) return "INTERVALO";
+  if (value.includes("post")) return "PÓS-JOGO";
+  if (value.includes("full") || value.includes("finish") || value.includes("fim")) return "FIM DE JOGO";
+  return "PROGRAMADA";
+}
+
+function rpfEventLabel(event) {
+  const type = normalizeText(
+    firstValue(event?.type, event?.tipo, event?.name, event?.event, "EVENTO RPF")
+  ).toUpperCase();
+
+  if (type.includes("JOURNEY_OPEN")) return "🎙️ RPF JORNADA NO AR";
+  if (type.includes("CROWD_START")) return "🏟️ TORCIDA RPF";
+  if (type.includes("TIME_AND_SCORE")) return "⏱️ TEMPO E PLACAR RPF";
+  if (type.includes("BREAKING") || type.includes("PLANTAO")) return "🚨 PLANTÃO RPF";
+  if (type.includes("GOAL") || type.includes("GOL")) return "⚽ GOL";
+  if (type.includes("HALFTIME") || type.includes("INTERVAL")) return "⏸️ INTERVALO";
+  if (type.includes("FULLTIME") || type.includes("FINISH")) return "🏁 FIM DE JOGO";
+
+  return type || "EVENTO RPF";
+}
+
+function rpfEventText(event) {
+  return String(
+    firstValue(
+      event?.text,
+      event?.message,
+      event?.mensagem,
+      event?.description,
+      event?.descricao,
+      event?.payload?.text,
+      event?.payload?.message,
+      "Evento confirmado pelo Motor RPF."
+    )
+  );
+}
+
 function RPFJornadaPlayer({ match }) {
-  const [enabled, setEnabled] = useState(false);
-  const [fixture, setFixture] = useState(match);
-  const [lastLine, setLastLine] = useState(
-    "Áudio aguardando ativação."
-  );
-  const [supported] = useState(
-    () => typeof window !== "undefined" && "speechSynthesis" in window
-  );
-  const spokenEvents = useRef(new Set());
-  const initialized = useRef(false);
-
   const id = getMatchId(match);
-  const currentMatch = fixture || match;
-  const live = isLive(currentMatch);
-  const finished = isFinished(currentMatch);
+  const registered = Boolean(match?._rpfJourney);
 
-  function speak(text, interrupt = false) {
-    if (!enabled || !supported || !text) return;
-
-    if (interrupt) {
-      window.speechSynthesis.cancel();
-    }
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "pt-BR";
-    utterance.rate = 1.03;
-    utterance.pitch = 0.96;
-    utterance.volume = 1;
-
-    const voices = window.speechSynthesis.getVoices();
-    const ptVoice = voices.find((voice) =>
-      String(voice.lang || "").toLowerCase().startsWith("pt-br")
-    ) || voices.find((voice) =>
-      String(voice.lang || "").toLowerCase().startsWith("pt")
-    );
-
-    if (ptVoice) utterance.voice = ptVoice;
-
-    setLastLine(text);
-    window.speechSynthesis.speak(utterance);
-  }
-
-  function activateAudio() {
-    if (!supported) {
-      setLastLine("Este aparelho não oferece voz do navegador.");
-      return;
-    }
-
-    setEnabled(true);
-
-    const intro = live
-      ? `RPF Jornada Esportiva no ar. ${getHomeName(currentMatch)} contra ${getAwayName(currentMatch)}. A narração usa somente os eventos confirmados pela nossa fonte de dados.`
-      : finished
-      ? `RPF Pós-Jogo. ${getHomeName(currentMatch)} contra ${getAwayName(currentMatch)}.`
-      : `RPF Jornada Esportiva. Pré-jogo de ${getHomeName(currentMatch)} contra ${getAwayName(currentMatch)}, pelo ${getLeagueName(currentMatch)}. A jornada começa uma hora antes da partida.`;
-
-    // A primeira fala precisa ocorrer dentro do clique do usuário.
-    const utterance = new SpeechSynthesisUtterance(intro);
-    utterance.lang = "pt-BR";
-    utterance.rate = 1.03;
-    utterance.pitch = 0.96;
-    setLastLine(intro);
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  }
-
-  function stopAudio() {
-    setEnabled(false);
-    if (supported) window.speechSynthesis.cancel();
-    setLastLine("Áudio pausado.");
-  }
+  const [loading, setLoading] = useState(registered);
+  const [engineState, setEngineState] = useState(null);
+  const [engineEvents, setEngineEvents] = useState([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    setFixture(match);
-    spokenEvents.current = new Set();
-    initialized.current = false;
-  }, [id]);
-
-  useEffect(() => {
-    if (!enabled || !id) return undefined;
+    if (!registered || !id) {
+      setEngineState(null);
+      setEngineEvents([]);
+      setLoading(false);
+      setError("");
+      return undefined;
+    }
 
     let cancelled = false;
 
-    async function updateFixture() {
+    async function loadJourney() {
       try {
-        const response = await fetch(
-          `${API_URL}/api/fixture/${encodeURIComponent(id)}`,
-          { cache: "no-store" }
-        );
+        const [stateResponse, eventsResponse] = await Promise.all([
+          fetch(`${API_URL}/api/rpf/jornada/${encodeURIComponent(id)}`, {
+            cache: "no-store",
+          }),
+          fetch(`${API_URL}/api/rpf/jornada/${encodeURIComponent(id)}/eventos`, {
+            cache: "no-store",
+          }),
+        ]);
 
-        if (!response.ok) return;
-
-        const data = await response.json();
-        const fresh = data?.response ?? data;
-
-        if (!fresh || cancelled) return;
-
-        setFixture((previous) => ({
-          ...(previous || match),
-          ...fresh,
-          radios: firstValue(
-            fresh?.radios,
-            data?.radios,
-            previous?.radios,
-            match?.radios
-          ),
-        }));
-
-        const events = getFixtureEvents(fresh);
-
-        // Na primeira consulta marcamos o histórico como conhecido.
-        // Assim a voz não dispara todos os eventos antigos de uma vez.
-        if (!initialized.current) {
-          events.forEach((event, index) =>
-            spokenEvents.current.add(eventFingerprint(event, index))
-          );
-          initialized.current = true;
-          return;
+        if (!stateResponse.ok) {
+          throw new Error(`Motor RPF respondeu ${stateResponse.status}`);
         }
 
-        events.forEach((event, index) => {
-          const key = eventFingerprint(event, index);
-          if (spokenEvents.current.has(key)) return;
+        const stateData = await stateResponse.json();
+        const eventsData = eventsResponse.ok ? await eventsResponse.json() : null;
 
-          spokenEvents.current.add(key);
-          const line = narrationForEvent(event, fresh);
+        if (cancelled) return;
 
-          if (line) {
-            const important = /gol|vermelho|fim de jogo/i.test(line);
-            speak(line, important);
-          }
-        });
-      } catch (error) {
-        console.error("RPF Jornada: erro ao atualizar partida", error);
+        const statePayload = stateData?.response ?? stateData;
+        const eventsPayload = eventsData?.response ?? eventsData;
+
+        setEngineState(statePayload);
+
+        const eventCandidates = [
+          eventsPayload?.events,
+          eventsPayload?.eventos,
+          eventsPayload?.generatedEvents,
+          eventsPayload?.EventosGerados,
+          statePayload?.generatedEvents,
+          statePayload?.EventosGerados,
+          statePayload?.state?.events,
+          statePayload?.state?.eventos,
+        ];
+
+        const foundEvents = eventCandidates.find(Array.isArray) || [];
+        setEngineEvents(foundEvents.slice().reverse().slice(0, 20));
+        setError("");
+      } catch (requestError) {
+        if (!cancelled) {
+          console.error("Motor RPF: erro ao consultar Jornada", requestError);
+          setError("Não foi possível atualizar o Motor RPF agora.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
-    updateFixture();
-    const timer = window.setInterval(updateFixture, 12000);
+    loadJourney();
+    const timer = window.setInterval(loadJourney, 12000);
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [enabled, id]);
+  }, [id, registered]);
 
-  useEffect(() => {
-    return () => {
-      if (supported) window.speechSynthesis.cancel();
-    };
-  }, [supported]);
+  if (!registered) return null;
+
+  const phase = firstValue(
+    engineState?.phase,
+    engineState?.fase,
+    engineState?.state?.phase,
+    engineState?.state?.fase,
+    "scheduled"
+  );
+
+  const phaseLabel = rpfPhaseLabel(phase);
+  const priority = firstValue(
+    engineState?.priority,
+    engineState?.prioridade,
+    match?._rpfJourney?.priority,
+    match?._rpfJourney?.prioridade,
+    "RPF"
+  );
 
   return (
-    <section className={`rpf-jornada ${enabled ? "is-on" : ""}`}>
+    <section className="rpf-jornada is-on">
       <div className="rpf-jornada-head">
         <div className="rpf-jornada-mic">🎙️</div>
+
         <div>
-          <small>RPF ÁUDIO</small>
+          <small>MOTOR RPF • PRIORIDADE {priority}</small>
           <h2>RPF Jornada Esportiva</h2>
         </div>
-        <span className="rpf-jornada-badge">
-          {finished ? "PÓS-JOGO" : live ? "AO VIVO" : "PRÉ-JOGO"}
+
+        <span className={`rpf-jornada-badge phase-${String(phaseLabel).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}>
+          {phaseLabel}
         </span>
       </div>
 
-      <p className="rpf-jornada-line">{lastLine}</p>
+      <p className="rpf-jornada-line">
+        {loading
+          ? "Conectando ao Motor RPF..."
+          : error
+          ? error
+          : phaseLabel === "PROGRAMADA"
+          ? `Jornada registrada. O pré-jogo começa 60 minutos antes de ${getHomeName(match)} x ${getAwayName(match)}.`
+          : phaseLabel === "PRÉ-JOGO"
+          ? "Pré-jogo RPF no ar. Acompanhamento automático do Motor RPF."
+          : phaseLabel === "AO VIVO"
+          ? "Jornada no ar com Torcida RPF, Tempo e Placar, Plantão RPF e eventos reais da partida."
+          : phaseLabel === "INTERVALO"
+          ? "Intervalo de jogo na RPF Jornada Esportiva."
+          : phaseLabel === "FIM DE JOGO"
+          ? "Fim de jogo. O Motor RPF prepara o pós-jogo."
+          : "Pós-jogo RPF em andamento."}
+      </p>
 
       <div className="rpf-jornada-actions">
-        {!enabled ? (
-          <button type="button" onClick={activateAudio}>
-            <Play size={18} fill="currentColor" />
-            ATIVAR ÁUDIO RPF
-          </button>
+        <span className="rpf-jornada-engine-status">
+          <span className="rpf-audio-pulse" />
+          MOTOR RPF CONECTADO
+        </span>
+      </div>
+
+      <div className="rpf-jornada-moments">
+        <div className="rpf-jornada-moments-title">
+          <strong>MOMENTOS DO JOGO</strong>
+          <small>Somente eventos confirmados</small>
+        </div>
+
+        {engineEvents.length === 0 ? (
+          <div className="rpf-jornada-empty-event">
+            {phaseLabel === "PROGRAMADA"
+              ? "Os momentos aparecerão aqui quando a Jornada começar."
+              : "Aguardando o próximo evento confirmado pelo Motor RPF."}
+          </div>
         ) : (
-          <button type="button" className="active" onClick={stopAudio}>
-            <span className="rpf-audio-pulse" />
-            ÁUDIO RPF NO AR
-          </button>
+          <div className="rpf-jornada-event-list">
+            {engineEvents.map((event, index) => {
+              const minute = firstValue(
+                event?.minute,
+                event?.minuto,
+                event?.payload?.minute,
+                event?.payload?.minuto
+              );
+
+              return (
+                <article
+                  className="rpf-jornada-event"
+                  key={`${eventFingerprint(event, index)}-${index}`}
+                >
+                  <div>
+                    <strong>{rpfEventLabel(event)}</strong>
+                    <p>{rpfEventText(event)}</p>
+                  </div>
+
+                  {minute !== null && minute !== undefined && minute !== "" && (
+                    <span>{minute}'</span>
+                  )}
+                </article>
+              );
+            })}
+          </div>
         )}
       </div>
 
       <small className="rpf-jornada-note">
-        Narração automática baseada somente em eventos recebidos da BSD.
-        Nenhuma jogada é inventada entre os eventos.
+        A Jornada não inventa lances. O Motor RPF reage somente aos dados reais recebidos das fontes esportivas.
       </small>
     </section>
   );
@@ -3071,6 +3116,7 @@ function App() {
 
   const [matches, setMatches] = useState([]);
   const [radios, setRadios] = useState([]);
+  const [rpfJourneys, setRpfJourneys] = useState([]);
 
   const [loadingMatches, setLoadingMatches] = useState(true);
   const [loadingRadios, setLoadingRadios] = useState(true);
@@ -3133,6 +3179,68 @@ function App() {
       cancelled = true;
     };
   }, [selectedDate]);
+
+  // ====================================================
+  // RPF JORNADAS ATIVAS
+  // ====================================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRpfJourneys() {
+      try {
+        const response = await fetch(`${API_URL}/api/rpf/jornadas`, {
+          cache: "no-store",
+        });
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (cancelled) return;
+
+        const list = Array.isArray(data?.response)
+          ? data.response
+          : Array.isArray(data?.resposta)
+          ? data.resposta
+          : [];
+
+        setRpfJourneys(list);
+      } catch (error) {
+        console.error("Erro ao carregar Jornadas RPF:", error);
+      }
+    }
+
+    loadRpfJourneys();
+    const timer = window.setInterval(loadRpfJourneys, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const rpfJourneyMap = useMemo(() => {
+    const map = new Map();
+
+    for (const journey of rpfJourneys) {
+      const fixtureId = String(
+        firstValue(journey?.fixtureId, journey?.fixture_id, journey?.id, "")
+      );
+
+      if (fixtureId) map.set(fixtureId, journey);
+    }
+
+    return map;
+  }, [rpfJourneys]);
+
+  const visibleMatches = useMemo(
+    () =>
+      matches.map((match) => {
+        const journey = rpfJourneyMap.get(getMatchId(match));
+        return journey ? { ...match, _rpfJourney: journey } : match;
+      }),
+    [matches, rpfJourneyMap]
+  );
 
   // ====================================================
   // RÁDIOS
@@ -3216,7 +3324,12 @@ function App() {
       const data = await response.json();
 
       if (data?.ok && data?.response) {
-        setSelectedMatch(data.response);
+        const journey = rpfJourneyMap.get(String(id));
+        setSelectedMatch({
+          ...match,
+          ...data.response,
+          ...(journey ? { _rpfJourney: journey } : {}),
+        });
       }
     } catch (error) {
       console.error("Erro ao atualizar partida:", error);
@@ -3259,7 +3372,7 @@ function App() {
       return (
         <CompetitionScreen
           competition={selectedCompetition}
-          matches={matches}
+          matches={visibleMatches}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
           onOpenMatch={openMatch}
@@ -3271,7 +3384,7 @@ function App() {
     if (activeTab === "home") {
       return (
         <HomeScreen
-          matches={matches}
+          matches={visibleMatches}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
           onOpenMatch={openMatch}
@@ -3284,7 +3397,7 @@ function App() {
     if (activeTab === "games") {
       return (
         <GamesScreen
-          matches={matches}
+          matches={visibleMatches}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
           onOpenMatch={openMatch}
@@ -3299,7 +3412,7 @@ function App() {
     if (activeTab === "favorites") {
       return (
         <FavoritesScreen
-          matches={matches}
+          matches={visibleMatches}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
           onOpenMatch={openMatch}
