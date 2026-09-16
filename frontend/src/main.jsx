@@ -839,8 +839,53 @@ function HomeScreen({
   onOpenCompetition,
   loading,
 }) {
-  const liveMatches = matches.filter(isLive);
+  const [competitions, setCompetitions] = useState([]);
+const [competitionsLoading, setCompetitionsLoading] = useState(true);
+  
+  useEffect(() => {
+  let active = true;
 
+  async function loadCompetitions() {
+    try {
+      setCompetitionsLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/api/competitions`
+      );
+
+      const data = await response.json();
+
+      if (active) {
+        setCompetitions(
+          Array.isArray(data?.response)
+            ? data.response
+            : []
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Erro ao carregar campeonatos:",
+        error
+      );
+
+      if (active) {
+        setCompetitions([]);
+      }
+    } finally {
+      if (active) {
+        setCompetitionsLoading(false);
+      }
+    }
+  }
+
+  loadCompetitions();
+
+  return () => {
+    active = false;
+  };
+}, []);
+  const liveMatches = matches.filter(isLive);
+  
   const interiorWords = [
     "gaucho",
     "gauchao",
@@ -886,6 +931,7 @@ function HomeScreen({
   };
 
   const interiorMatches = matches.filter(isInteriorMatch);
+
 
   const scheduledInterior = interiorMatches.filter(
     (match) => !isLive(match) && !isFinished(match)
@@ -1101,36 +1147,71 @@ function HomeScreen({
           <CalendarDays size={21} />
         </div>
 <div className="rpf-league-grid">
-  <button
-    type="button"
-    className="rpf-league-card"
-    onClick={() =>
-      onOpenCompetition({
-        id: 9,
-        league_id: 9,
-        season_id: 28,
-        name: "Brasileiro Série A",
-      })
-    }
-  >
-    <div className="rpf-league-logo">
-      <div className="competition-logo-fallback">
-        <Trophy size={22} />
-      </div>
-    </div>
+  {competitionsLoading ? (
+  <div className="loading-card">
+    Carregando campeonatos...
+  </div>
+) : competitions.length === 0 ? (
+  <div className="empty-card">
+    Nenhum campeonato disponível.
+  </div>
+) : (
+  <div className="rpf-league-grid">
+    {competitions.map((competition) => {
+      const leagueId =
+        competition?.league_id ??
+        competition?.id;
 
-    <div className="rpf-league-info">
-      <strong>Brasileiro Série A</strong>
-      <span>Classificação 2026</span>
-    </div>
+      const seasonId =
+        competition?.season_id ??
+        competition?.current_season?.id ??
+        competition?.temporada_atual?.id ??
+        competition?.season?.id;
 
-    <div className="rpf-league-next">
-      <strong>🏆 TABELA</strong>
-    </div>
+      const leagueName =
+        competition?.name ??
+        competition?.nome ??
+        "Campeonato";
 
-    <ChevronRight size={18} />
-  </button>
-</div>
+      return (
+        <button
+          type="button"
+          key={`${leagueId}-${seasonId}`}
+          className="rpf-league-card"
+          onClick={() =>
+            onOpenCompetition({
+              ...competition,
+              id: leagueId,
+              league_id: leagueId,
+              season_id: seasonId,
+              name: leagueName,
+            })
+          }
+        >
+          <div className="rpf-league-logo">
+            <div className="competition-logo-fallback">
+              <Trophy size={22} />
+            </div>
+          </div>
+
+          <div className="rpf-league-info">
+            <strong>{leagueName}</strong>
+
+            <span>
+              Classificação
+            </span>
+          </div>
+
+          <div className="rpf-league-next">
+            <strong>🏆 TABELA</strong>
+          </div>
+
+          <ChevronRight size={18} />
+        </button>
+      );
+    })}
+  </div>
+)}
         {groups.length === 0 ? (
           <div className="empty-card">
             Nenhum campeonato encontrado.
