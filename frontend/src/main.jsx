@@ -965,6 +965,109 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
     )
     .slice(0, 8);
 
+  // ====================================================
+  // RPF EM 3 MINUTOS - GIRO AUTOMÁTICO COM DADOS REAIS
+  // ====================================================
+
+  const rpfThreeMinutes = useMemo(() => {
+    const normalizedLeague = (match) =>
+      normalizeText(getLeagueName(match)).toLowerCase();
+
+    const brazilWords = [
+      "brasileiro", "brasileirao", "serie a", "serie b",
+      "copa do brasil", "brasil"
+    ];
+
+    const internationalWords = [
+      "premier league", "champions league", "europa league",
+      "bundesliga", "serie a", "ligue 1", "la liga",
+      "primeira liga", "conference league"
+    ];
+
+    const findMatch = (predicate, usedIds = new Set()) =>
+      matches.find((match) =>
+        !usedIds.has(getMatchId(match)) && predicate(match)
+      ) || null;
+
+    const used = new Set();
+
+    const brasil =
+      findMatch(
+        (match) =>
+          brazilWords.some((word) => normalizedLeague(match).includes(word)) &&
+          !isInteriorMatch(match),
+        used
+      ) ||
+      findMatch((match) => !isInteriorMatch(match), used);
+
+    if (brasil) used.add(getMatchId(brasil));
+
+    const internacional =
+      findMatch(
+        (match) =>
+          normalizedLeague(match).includes("premier league"),
+        used
+      ) ||
+      findMatch(
+        (match) =>
+          internationalWords.some((word) =>
+            normalizedLeague(match).includes(word)
+          ),
+        used
+      );
+
+    if (internacional) used.add(getMatchId(internacional));
+
+    const interior =
+      findMatch((match) => isInteriorMatch(match), used);
+
+    const makeCall = (match, category, emoji) => {
+      if (!match) {
+        return {
+          category,
+          emoji,
+          match: null,
+          title: "Sem jogo selecionado no momento",
+          text: "O giro será atualizado quando houver partida desta categoria nos dados do dia.",
+        };
+      }
+
+      const home = getHomeName(match);
+      const away = getAwayName(match);
+      const league = getLeagueName(match);
+
+      let text;
+
+      if (isLive(match)) {
+        const score = hasScore(match)
+          ? `${getHomeScore(match)} a ${getAwayScore(match)}`
+          : "placar em andamento";
+        text = `${league}: ${home} e ${away} estão ao vivo, ${score}.`;
+      } else if (isFinished(match)) {
+        const score = hasScore(match)
+          ? `${getHomeScore(match)} a ${getAwayScore(match)}`
+          : "partida encerrada";
+        text = `${league}: ${home} x ${away} terminou ${score}.`;
+      } else {
+        text = `${league}: ${home} x ${away}, às ${formatTime(match)}.`;
+      }
+
+      return {
+        category,
+        emoji,
+        match,
+        title: `${home} x ${away}`,
+        text,
+      };
+    };
+
+    return [
+      makeCall(brasil, "Brasil", "🇧🇷"),
+      makeCall(internacional, "Internacional", "🌍"),
+      makeCall(interior, "Interior", "🌾"),
+    ];
+  }, [matches]);
+
   return (
     <main className="screen home-screen rpf-home">
 
@@ -1154,10 +1257,39 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
           </div>
           <Clock3 size={21} />
         </div>
+        <p className="rpf-section-description">
+          Três chamadas rápidas montadas automaticamente com as partidas reais do dia.
+        </p>
+
         <div className="rpf-three-grid">
-          <div><strong>1</strong><span>Brasil</span><p>Rodada e principais jogos do dia.</p></div>
-          <div><strong>2</strong><span>Internacional</span><p>Premier League e futebol europeu.</p></div>
-          <div><strong>3</strong><span>Interior</span><p>Estaduais e divisões nacionais de acesso.</p></div>
+          {rpfThreeMinutes.map((item, index) => (
+            <button
+              type="button"
+              key={`rpf-three-${item.category}`}
+              className={`rpf-three-card ${item.match ? "has-match" : ""}`}
+              onClick={() => item.match && onOpenMatch(item.match)}
+              disabled={!item.match}
+            >
+              <div className="rpf-three-number">
+                <strong>{index + 1}</strong>
+                <span>{item.emoji}</span>
+              </div>
+
+              <div className="rpf-three-copy">
+                <span>{item.category}</span>
+                <strong>{item.title}</strong>
+                <p>{item.text}</p>
+
+                {item.match && (
+                  <small>
+                    {matchStatus(item.match)} • {getLeagueName(item.match)}
+                  </small>
+                )}
+              </div>
+
+              {item.match && <ChevronRight size={18} />}
+            </button>
+          ))}
         </div>
       </section>
 
