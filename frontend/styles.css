@@ -5306,3 +5306,270 @@ input:focus-visible {
     padding-right: 8px;
   }
 }
+
+/* ======================================================
+   RPF EM 3 MINUTOS — VISUAL PROFISSIONAL
+   ====================================================== */
+
+.rpf-three-minutes {
+  position: relative;
+  overflow: hidden;
+  padding: 22px;
+  border: 1px solid rgba(44, 255, 139, 0.16);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(44, 255, 139, 0.09), transparent 22rem),
+    linear-gradient(145deg, rgba(8, 31, 23, 0.96), rgba(3, 14, 10, 0.98));
+}
+
+.rpf-three-minutes .section-heading {
+  margin-bottom: 6px;
+}
+
+.rpf-three-minutes .section-heading > svg {
+  color: var(--green);
+}
+
+.rpf-section-description {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.rpf-three-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.rpf-three-card {
+  position: relative;
+  min-width: 0;
+  min-height: 238px;
+  padding: 15px;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  overflow: hidden;
+  border-radius: 18px;
+  color: var(--text);
+  text-align: left;
+  background: linear-gradient(180deg, rgba(13, 42, 32, 0.92), rgba(5, 19, 14, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.rpf-three-card.has-match:hover {
+  transform: translateY(-2px);
+  border-color: rgba(44, 255, 139, 0.3);
+  background: linear-gradient(180deg, rgba(16, 50, 38, 0.96), rgba(5, 21, 15, 0.98));
+}
+
+.rpf-three-card.has-match::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+  opacity: 0.5;
+}
+
+.rpf-three-number {
+  width: 32px;
+  flex: 0 0 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.rpf-three-number strong {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #002713;
+  background: var(--green);
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.rpf-three-number span {
+  font-size: 17px;
+}
+
+.rpf-three-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.rpf-three-category-row {
+  min-height: 23px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.rpf-three-category-row > span {
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: 0.65px;
+  text-transform: uppercase;
+}
+
+.rpf-three-status {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.35px;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.rpf-three-status.live {
+  color: var(--green);
+  background: rgba(44, 255, 139, 0.08);
+  border-color: rgba(44, 255, 139, 0.2);
+}
+
+.rpf-three-match {
+  min-height: 61px;
+  margin-bottom: 12px;
+  padding: 9px 7px;
+  display: grid;
+  grid-template-columns: minmax(42px, 1fr) auto minmax(42px, 1fr);
+  align-items: center;
+  gap: 7px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.rpf-three-team {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.rpf-three-team .team-badge-small {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+}
+
+.rpf-three-team > span {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--white);
+  font-size: 9px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rpf-three-scorebox {
+  min-width: 58px;
+  text-align: center;
+}
+
+.rpf-three-scorebox strong {
+  display: block;
+  color: var(--white);
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 950;
+  letter-spacing: -0.5px;
+}
+
+.rpf-three-scorebox small {
+  display: block;
+  min-height: 11px;
+  margin-top: 4px;
+  color: var(--green);
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.rpf-three-title {
+  display: block;
+  overflow: hidden;
+  color: var(--white);
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rpf-three-copy > p {
+  margin: 6px 0 9px;
+  color: #a8c1b5;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.rpf-three-league {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rpf-three-arrow {
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--green);
+  opacity: 0.75;
+}
+
+@media (max-width: 900px) {
+  .rpf-three-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rpf-three-card {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .rpf-three-minutes {
+    padding: 16px 12px;
+    border-radius: 18px;
+  }
+
+  .rpf-three-card {
+    padding: 13px 11px;
+    gap: 8px;
+  }
+
+  .rpf-three-number {
+    width: 28px;
+    flex-basis: 28px;
+  }
+
+  .rpf-three-number strong {
+    width: 25px;
+    height: 25px;
+  }
+
+  .rpf-three-match {
+    grid-template-columns: minmax(38px, 1fr) auto minmax(38px, 1fr);
+  }
+}
