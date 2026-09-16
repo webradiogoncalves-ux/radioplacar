@@ -2091,10 +2091,10 @@ function RPFJornadaPlayer({ match }) {
   const preGameText = preGame ? preGame.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "60 min antes";
 
   function motorAudioUrl(path) {
-    if (!path) return "";
-    if (/^https?:\\/\\//i.test(String(path))) return String(path);
-    return `${API_URL}${String(path).startsWith("/") ? "" : "/"}${path}`;
-  }
+  if (!path) return "";
+  if (/^https?:\/\//i.test(String(path))) return String(path);
+  return `${API_URL}${String(path).startsWith("/") ? "" : "/"}${path}`;
+}
 
   function speakMotorText(text) {
     if (!audioEnabledRef.current || !text || !("speechSynthesis" in window)) return;
