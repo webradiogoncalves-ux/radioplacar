@@ -1116,6 +1116,68 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
       )}
 
 
+      {/* RPF EDITORIAL */}
+      <section className="home-block rpf-editorial-block">
+        <div className="section-heading">
+          <div>
+            <span className="section-kicker">RPF EM CAMPO</span>
+            <h2>Notícias e cobertura RPF</h2>
+          </div>
+          <Wifi size={21} />
+        </div>
+
+        <div className="rpf-editorial-grid">
+          <article className="rpf-editorial-card">
+            <span>🇧🇷 RPF NOTÍCIAS</span>
+            <strong>Futebol brasileiro</strong>
+            <p>Jogos, campeonatos e destaques nacionais ligados à programação do RPF PLACAR.</p>
+          </article>
+          <article className="rpf-editorial-card">
+            <span>🌍 RPF INTERNACIONAL</span>
+            <strong>Europa e mundo</strong>
+            <p>Premier League em prioridade, além das principais competições internacionais.</p>
+          </article>
+          <article className="rpf-editorial-card">
+            <span>🌾 RPF INTERIOR</span>
+            <strong>O futebol que merece espaço</strong>
+            <p>Estaduais, divisões de acesso, Série C, Série D e competições regionais.</p>
+          </article>
+        </div>
+      </section>
+
+      {/* RPF EM 3 MINUTOS */}
+      <section className="home-block rpf-three-minutes">
+        <div className="section-heading">
+          <div>
+            <span className="section-kicker">⚡ GIRO RÁPIDO</span>
+            <h2>RPF em 3 Minutos</h2>
+          </div>
+          <Clock3 size={21} />
+        </div>
+        <div className="rpf-three-grid">
+          <div><strong>1</strong><span>Brasil</span><p>Rodada e principais jogos do dia.</p></div>
+          <div><strong>2</strong><span>Internacional</span><p>Premier League e futebol europeu.</p></div>
+          <div><strong>3</strong><span>Interior</span><p>Estaduais e divisões nacionais de acesso.</p></div>
+        </div>
+      </section>
+
+      {/* RPF TV */}
+      <section className="home-block rpf-tv-block">
+        <div className="section-heading">
+          <div>
+            <span className="section-kicker">📺 RPF TV</span>
+            <h2>Vídeos do RPF</h2>
+          </div>
+          <Play size={21} />
+        </div>
+        <div className="empty-card rpf-tv-empty">
+          <Play size={28} />
+          <strong>RPF TV</strong>
+          <span>Os vídeos próprios, licenciados ou incorporáveis aparecerão aqui quando estiverem configurados.</span>
+        </div>
+      </section>
+
+
       {/* POR CAMPEONATO */}
 
       <section className="home-block">
