@@ -973,109 +973,134 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
     .slice(0, 8);
 
   // ====================================================
-  // RPF EM 3 MINUTOS - GIRO AUTOMÁTICO COM DADOS REAIS
+  // RPF 3 MINUTOS — NOTÍCIAS AUTOMÁTICAS
   // ====================================================
 
-  const rpfThreeMinutes = useMemo(() => {
-    const normalizedLeague = (match) =>
-      normalizeText(getLeagueName(match)).toLowerCase();
+  const [rpfNews, setRpfNews] = useState({
+    brasil: [],
+    internacional: [],
+    interior: [],
+    ticker: [],
+  });
 
-    const brazilWords = [
-      "brasileiro", "brasileirao", "brasileiro serie a", "brasileiro serie b",
-      "copa do brasil", "brasil"
-    ];
+  const [rpfNewsLoading, setRpfNewsLoading] = useState(true);
 
-    const internationalWords = [
-      "premier league", "champions league", "europa league",
-      "bundesliga", "serie a", "ligue 1", "la liga",
-      "primeira liga", "conference league"
-    ];
+  useEffect(() => {
+    let active = true;
+    let timer = null;
 
-    const findMatch = (predicate, usedIds = new Set()) =>
-      matches.find((match) =>
-        !usedIds.has(getMatchId(match)) && predicate(match)
-      ) || null;
+    async function loadRpfNews() {
+      try {
+        const response = await fetch(`${API_URL}/api/rpf/noticias`, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
 
-    const used = new Set();
+        if (!response.ok) {
+          throw new Error(`RPF Notícias respondeu ${response.status}`);
+        }
 
-    const brasil =
-      findMatch(
-        (match) =>
-          brazilWords.some((word) => normalizedLeague(match).includes(word)) &&
-          !isInteriorMatch(match),
-        used
-      ) ||
-      findMatch((match) => !isInteriorMatch(match), used);
+        const data = await response.json();
+        if (!active) return;
 
-    if (brasil) used.add(getMatchId(brasil));
+        const noticias = data?.noticias && typeof data.noticias === "object"
+          ? data.noticias
+          : {};
 
-    const internacional =
-      findMatch(
-        (match) =>
-          normalizedLeague(match).includes("premier league"),
-        used
-      ) ||
-      findMatch(
-        (match) =>
-          internationalWords.some((word) =>
-            normalizedLeague(match).includes(word)
-          ),
-        used
-      );
+        setRpfNews({
+          brasil: Array.isArray(noticias?.brasil) ? noticias.brasil : [],
+          internacional: Array.isArray(noticias?.internacional) ? noticias.internacional : [],
+          interior: Array.isArray(noticias?.interior) ? noticias.interior : [],
+          ticker: Array.isArray(data?.ticker) ? data.ticker : [],
+        });
+      } catch (error) {
+        console.error("Erro ao carregar RPF Notícias:", error);
+      } finally {
+        if (active) setRpfNewsLoading(false);
+      }
+    }
 
-    if (internacional) used.add(getMatchId(internacional));
+    loadRpfNews();
+    timer = window.setInterval(loadRpfNews, 10 * 60 * 1000);
 
-    const interior =
-      findMatch((match) => isInteriorMatch(match), used);
-const makeCall = (match, category, emoji) => {
-  if (!match) {
-    return {
-      category,
-      emoji,
-      match: null,
-      title: "Atualizando informações",
-      text: "A RPF está buscando novas informações esportivas.",
+    return () => {
+      active = false;
+      if (timer) window.clearInterval(timer);
     };
-  }
+  }, []);
 
-  const home = getHomeName(match);
-  const away = getAwayName(match);
-  const league = getLeagueName(match);
-
-  let text = "";
-
-  if (isLive(match)) {
-    const score = hasScore(match)
-      ? `${getHomeScore(match)} a ${getAwayScore(match)}`
-      : "placar em andamento";
-
-    text = `${league}: ${home} e ${away} estão ao vivo, ${score}.`;
-  } else if (isFinished(match)) {
-    const score = hasScore(match)
-      ? `${getHomeScore(match)} a ${getAwayScore(match)}`
-      : "partida encerrada";
-
-    text = `${league}: ${home} x ${away} terminou ${score}.`;
-  } else {
-    text = `${league}: ${home} x ${away}, às ${formatTime(match)}.`;
-  }
-
-  return {
+  const normalizeRpfNews = (item, category, emoji) => ({
+    id: item?.id || `${category}-${item?.url || item?.title || "updating"}`,
     category,
     emoji,
-    match,
-    title: `${home} x ${away}`,
-    text,
-  };
-};
+    title: item?.title || item?.titulo || "Atualizando notícias",
+    text: item?.text || item?.texto || item?.description || item?.descricao || "",
+    source: item?.source || item?.fonte || "RPF",
+    url: item?.url || item?.link || "",
+    publishedAt: item?.publishedAt || item?.published_at || item?.data || null,
+    match: null,
+  });
 
-return [
-  makeCall(brasil, "Brasil", "🇧🇷"),
-  makeCall(internacional, "Internacional", "🌍"),
-  makeCall(interior, "Interior", "🌾"),
-];
-    
-  }, [matches]);
+  const rpfThreeMinutes = useMemo(() => [
+    normalizeRpfNews(rpfNews.brasil[0], "RPF Notícias", "🇧🇷"),
+    normalizeRpfNews(rpfNews.internacional[0], "RPF Internacional", "🌍"),
+    normalizeRpfNews(rpfNews.interior[0], "RPF Interior", "🌾"),
+  ], [rpfNews]);
+
+  const rpfFeaturedNews = useMemo(() => {
+    if (!heroMatch) return null;
+
+    const home = normalizeText(getHomeName(heroMatch)).toLowerCase();
+    const away = normalizeText(getAwayName(heroMatch)).toLowerCase();
+    const league = normalizeText(getLeagueName(heroMatch)).toLowerCase();
+    const allNews = [...rpfNews.brasil, ...rpfNews.internacional, ...rpfNews.interior];
+
+    const importantWords = (value) => value.split(" ").filter((word) => word.length >= 5);
+
+    const scoreNews = (item) => {
+      const title = normalizeText(item?.title || item?.titulo || "").toLowerCase();
+      const text = normalizeText(item?.text || item?.texto || item?.description || "").toLowerCase();
+      const content = `${title} ${text}`;
+      let score = 0;
+
+      if (home && content.includes(home)) score += 10;
+      if (away && content.includes(away)) score += 10;
+      if (importantWords(home).some((word) => content.includes(word))) score += 4;
+      if (importantWords(away).some((word) => content.includes(word))) score += 4;
+      if (importantWords(league).some((word) => content.includes(word))) score += 2;
+      return score;
+    };
+
+    return allNews
+      .map((item) => ({ item, score: scoreNews(item) }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)[0]?.item || null;
+  }, [heroMatch, rpfNews]);
+
+  const rpfTickerNews = useMemo(() => {
+    const source = rpfNews.ticker.length
+      ? rpfNews.ticker
+      : [...rpfNews.brasil, ...rpfNews.internacional, ...rpfNews.interior];
+    const seen = new Set();
+
+    return source.map((item, index) => {
+      const title = item?.title || item?.titulo || "";
+      const text = item?.text || item?.texto || item?.description || "";
+      const key = normalizeText(`${title}-${item?.url || index}`).toLowerCase();
+      return {
+        id: item?.id || `ticker-${index}`,
+        category: item?.category || item?.categoria || "RPF",
+        title,
+        text,
+        url: item?.url || item?.link || "",
+        key,
+      };
+    }).filter((item) => {
+      if (!item.title || seen.has(item.key)) return false;
+      seen.add(item.key);
+      return true;
+    }).slice(0, 20);
+  }, [rpfNews]);
 
   return (
     <main className="screen home-screen rpf-home">
@@ -1239,30 +1264,19 @@ return [
         </div>
 
         <div className="rpf-editorial-grid">
-          <article className="rpf-editorial-card">
-            <span>🇧🇷 RPF NOTÍCIAS</span>
-            <strong>Futebol brasileiro</strong>
-            <p>Jogos, campeonatos e destaques nacionais ligados à programação do RPF PLACAR.</p>
-          </article>
-          <article className="rpf-editorial-card">
-            <span>🌍 RPF INTERNACIONAL</span>
-            
-### JOÃO PEDRO É DÚVIDA CONTRA O BRENTFORD
-            
-Destaque do Chelsea neste início de Premier League, João Pedro é dúvida para a partida desta sexta-feira contra o Brentford.
-
-Xabi Alonso não confirmou a presença do atacante e afirmou que sua participação ainda é uma possibilidade.
-
-João Pedro chega ao confronto depois de ter sido eleito o Jogador do Mês de agosto da Premier League.
-
-**Brentford x Chelsea — hoje pela Premier League.**
-
-🔥 A RPF acompanha tudo no **Esquentando o Jogo**.
-
-            <span>🌾 RPF INTERIOR</span>
-            <strong>O futebol que merece espaço</strong>
-            <p>Estaduais, divisões de acesso, Série C, Série D e competições regionais.</p>
-          </article>
+          {rpfThreeMinutes.map((item) => (
+            <article
+              key={`editorial-${item.id}`}
+              className="rpf-editorial-card"
+              onClick={() => item.url && window.open(item.url, "_blank", "noopener,noreferrer")}
+              style={{ cursor: item.url ? "pointer" : "default" }}
+            >
+              <span>{item.emoji} {String(item.category).toUpperCase()}</span>
+              <strong>{item.title}</strong>
+              <p>{item.text || (rpfNewsLoading ? "Atualizando notícias..." : "Nova informação em atualização.")}</p>
+              {item.source && <small>Fonte: {item.source}</small>}
+            </article>
+          ))}
         </div>
       </section>
 
@@ -1703,6 +1717,22 @@ João Pedro chega ao confronto depois de ter sido eleito o Jogador do Mês de ag
               ? "Partida encerrada"
               : `Bola rola às ${formatTime(heroMatch)}`}
           </span>
+
+          {rpfFeaturedNews && (
+            <div style={{ marginTop: 10, paddingTop: 9, borderTop: "1px solid rgba(69,255,115,.18)" }}>
+              <span style={{ display: "block", color: "#45ff73", fontSize: 8, fontWeight: 1000, marginBottom: 4 }}>
+                ESQUENTANDO O JOGO • ÚLTIMA INFORMAÇÃO
+              </span>
+              <strong style={{ display: "block", color: "#fff", fontSize: 12, lineHeight: 1.3 }}>
+                {rpfFeaturedNews?.title || rpfFeaturedNews?.titulo}
+              </strong>
+              {(rpfFeaturedNews?.source || rpfFeaturedNews?.fonte) && (
+                <span style={{ display: "block", marginTop: 5, color: "#8d968f", fontSize: 8 }}>
+                  Fonte: {rpfFeaturedNews?.source || rpfFeaturedNews?.fonte}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
 
@@ -1764,60 +1794,36 @@ João Pedro chega ao confronto depois de ter sido eleito o Jogador do Mês de ag
             {rpfThreeMinutes.map((item, index) => (
               <button
                 type="button"
-                key={`rpf-tv-news-${item.category}`}
-                onClick={() =>
-                  item.match && onOpenMatch(item.match)
-                }
-                disabled={!item.match}
+                key={`rpf-tv-news-${item.id}-${index}`}
+                onClick={() => item.url && window.open(item.url, "_blank", "noopener,noreferrer")}
+                disabled={!item.url}
                 style={{
-                  minHeight: 92,
+                  minHeight: 105,
                   padding: 10,
                   borderRadius: 8,
-                  border:
-                    "1px solid rgba(255,255,255,.08)",
-                  background:
-                    index === 0 ? "#0d1a10" : "#080c09",
+                  border: "1px solid rgba(255,255,255,.08)",
+                  background: index === 0 ? "#0d1a10" : "#080c09",
                   color: "#fff",
                   textAlign: "left",
-                  cursor: item.match
-                    ? "pointer"
-                    : "default",
+                  cursor: item.url ? "pointer" : "default",
                 }}
               >
-                <span
-                  style={{
-                    display: "block",
-                    color: "#45ff73",
-                    fontSize: 8,
-                    fontWeight: 1000,
-                    marginBottom: 5,
-                  }}
-                >
-                  {item.emoji}{" "}
-                  {String(item.category).toUpperCase()}
+                <span style={{ display: "block", color: "#45ff73", fontSize: 8, fontWeight: 1000, marginBottom: 5 }}>
+                  {item.emoji} {String(item.category).toUpperCase()}
                 </span>
-
-                <strong
-                  style={{
-                    display: "block",
-                    fontSize: 11,
-                    lineHeight: 1.25,
-                  }}
-                >
+                <strong style={{ display: "block", fontSize: 11, lineHeight: 1.25 }}>
                   {item.title}
                 </strong>
-
-                <span
-                  style={{
-                    display: "block",
-                    marginTop: 5,
-                    color: "#9da69f",
-                    fontSize: 9,
-                    lineHeight: 1.3,
-                  }}
-                >
-                  {item.text}
-                </span>
+                {item.text && (
+                  <span style={{ display: "block", marginTop: 5, color: "#9da69f", fontSize: 9, lineHeight: 1.3 }}>
+                    {item.text}
+                  </span>
+                )}
+                {item.source && (
+                  <span style={{ display: "block", marginTop: 7, color: "#45ff73", fontSize: 8, fontWeight: 800 }}>
+                    FONTE • {item.source}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1892,7 +1898,7 @@ João Pedro chega ao confronto depois de ter sido eleito o Jogador do Mês de ag
       <div className="rpf-tv-ticker">
         <div className="rpf-tv-ticker-track">
 
-          {rpfThreeMinutes.map((item, index) => (
+          {rpfTickerNews.map((item, index) => (
             <span
               key={`ticker-${item.category}-${index}`}
               style={{
@@ -1912,7 +1918,7 @@ João Pedro chega ao confronto depois de ter sido eleito o Jogador do Mês de ag
 
 
           {/* SEGUNDA CÓPIA PARA O GIRO NÃO FICAR VAZIO */}
-          {rpfThreeMinutes.map((item, index) => (
+          {rpfTickerNews.map((item, index) => (
             <span
               key={`ticker-repeat-${item.category}-${index}`}
               style={{
