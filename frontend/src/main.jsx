@@ -1341,7 +1341,7 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
 
   @media (prefers-reduced-motion: reduce) {
     .rpf-tv-ticker-track {
-      animation: rpfTickerMove 410s linear infinite !important;
+      animation: rpfTickerMove 600s linear infinite !important;
     }
   }
 `}</style>
