@@ -32,11 +32,23 @@ const RSS_SOURCES = [
 // Fonte oficial para futebol gaúcho
 // ======================================================
 
-const FGF_SOURCE = {
-  name: "FGF",
-  category: "interior",
-  url: "https://www.fgf.com.br/noticias/",
-};
+const FGF_SOURCES = [
+  {
+    name: "FGF - Série A2",
+    category: "interior",
+    url: "https://fgf.com.br/noticias/Gauchao-Serie-A2",
+  },
+  {
+    name: "FGF - Série B",
+    category: "interior",
+    url: "https://fgf.com.br/noticias/Gauchao-Serie-B",
+  },
+  {
+    name: "FGF - Brasil de Pelotas",
+    category: "interior",
+    url: "https://fgf.com.br/noticias/Brasil-de-Pelotas",
+  },
+];
 
 // ======================================================
 // PALAVRAS — FUTEBOL
@@ -414,15 +426,47 @@ function safeDate(value) {
 // ======================================================
 // É FUTEBOL?
 // ======================================================
-
+const BLOCKED_SPORT_WORDS = [
+  "ufc",
+  "mma",
+  "octógono",
+  "octogono",
+  "copa davis",
+  "tênis",
+  "tenis",
+  "wta",
+  "atp",
+  "fórmula 1",
+  "formula 1",
+  "f1",
+  "fórmula 2",
+  "formula 2",
+  "f2",
+  "indycar",
+  "nba",
+  "basquete",
+  "vôlei",
+  "volei",
+];
 function isFootball(
   title,
   description
 ) {
-  const text =
-    normalize(
-      `${title} ${description}`
+  const text = normalize(
+    `${title} ${description}`
+  );
+
+  const blocked =
+    BLOCKED_SPORT_WORDS.some(
+      (word) =>
+        text.includes(
+          normalize(word)
+        )
     );
+
+  if (blocked) {
+    return false;
+  }
 
   return FOOTBALL_WORDS.some(
     (word) =>
@@ -696,40 +740,116 @@ function parseFgfDate(
   return date.toISOString();
 }
 
-async function fetchFgfInterior() {
+async function fetchFgfPage(source) {
   try {
-    const response =
-      await fetch(
-        FGF_SOURCE.url,
-        {
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 RPF-Placar/1.0",
-
-            Accept:
-              "text/html,application/xhtml+xml",
-          },
-
-          signal:
-            AbortSignal.timeout(
-              12000
-            ),
-        }
-      );
+    const response = await fetch(source.url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 RPF-Placar/1.0",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: AbortSignal.timeout(12000),
+    });
 
     if (!response.ok) {
       console.error(
-        `[RPF NEWS] FGF: HTTP ${response.status}`
+        `[RPF NEWS] ${source.name}: HTTP ${response.status}`
       );
-
       return [];
     }
 
-    const html =
-      Buffer.from(
-        await response.arrayBuffer()
-      ).toString("utf8");
+    const html = Buffer.from(
+      await response.arrayBuffer()
+    ).toString("utf8");
 
+    const news = [];
+    const used = new Set();
+
+    // A FGF usa links /noticia/...
+    const regex =
+      /<a[^>]+href=["']([^"']*\/noticia\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+    let match;
+
+    while ((match = regex.exec(html)) !== null) {
+      let url = cleanUrl(match[1]);
+      const title = cleanText(match[2]);
+
+      if (!title || title.length < 25) {
+        continue;
+      }
+
+      if (url.startsWith("/")) {
+        url = `https://fgf.com.br${url}`;
+      }
+
+      if (!/^https?:\/\//i.test(url)) {
+        continue;
+      }
+
+      const key = normalize(title);
+
+      if (used.has(key)) {
+        continue;
+      }
+
+      used.add(key);
+
+      news.push({
+        id: createId(
+          source.name,
+          title,
+          url
+        ),
+
+        category: "interior",
+
+        title,
+
+        text: title,
+
+        source: source.name,
+
+        url,
+
+        publishedAt:
+          new Date().toISOString(),
+      });
+    }
+
+    console.log(
+      `[RPF NEWS] ${source.name}: ${news.length} notícias`
+    );
+
+    return news.slice(0, 15);
+  } catch (error) {
+    console.error(
+      `[RPF NEWS] Erro ${source.name}:`,
+      error.message
+    );
+
+    return [];
+  }
+}
+
+async function fetchFgfInterior() {
+  const results =
+    await Promise.allSettled(
+      FGF_SOURCES.map(
+        (source) =>
+          fetchFgfPage(source)
+      )
+    );
+
+  const news = [];
+
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      news.push(...result.value);
+    }
+  }
+
+  return removeDuplicates(news);
+}
     // ==================================================
     // Captura links de notícias
     // ==================================================
