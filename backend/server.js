@@ -2,7 +2,9 @@
 
 import express from "express";
 import cors from "cors";
-
+import {
+  loadRpfNews,
+} from "./rpf-news.js";
 import {
   getRadios,
   getRadio,
@@ -40,6 +42,38 @@ import {
   getRpfPriority,
   RPF_ENGINE_INFO,
 } from "./rpf-engine.js";
+// ======================================================
+// RPF NEWS — NOTÍCIAS AUTOMÁTICAS
+// ======================================================
+
+app.get(
+  "/api/rpf/noticias",
+  async (_req, res) => {
+    try {
+      const news =
+        await loadRpfNews();
+
+      res.json(news);
+    } catch (error) {
+      console.error(
+        "ERRO /api/rpf/noticias:",
+        error
+      );
+
+      res.status(500).json({
+        ok: false,
+        error:
+          "Não foi possível carregar as notícias RPF.",
+        noticias: {
+          brasil: [],
+          internacional: [],
+          interior: [],
+        },
+        ticker: [],
+      });
+    }
+  }
+);
 // ======================================================
 // MOTOR RPF
 // ======================================================
