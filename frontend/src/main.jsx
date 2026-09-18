@@ -1254,8 +1254,7 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
           </article>
         </div>
       </section>
-
-            {/* =====================================================
+ {/* =====================================================
           RPF 3 MINUTOS — PADRÃO TV OFICIAL
           ===================================================== */}
 
