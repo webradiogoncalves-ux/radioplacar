@@ -1244,10 +1244,19 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
           </article>
           <article className="rpf-editorial-card">
             <span>🌍 RPF INTERNACIONAL</span>
-            <strong>Europa e mundo</strong>
-            <p>Premier League em prioridade, além das principais competições internacionais.</p>
-          </article>
-          <article className="rpf-editorial-card">
+            
+### JOÃO PEDRO É DÚVIDA CONTRA O BRENTFORD
+            
+Destaque do Chelsea neste início de Premier League, João Pedro é dúvida para a partida desta sexta-feira contra o Brentford.
+
+Xabi Alonso não confirmou a presença do atacante e afirmou que sua participação ainda é uma possibilidade.
+
+João Pedro chega ao confronto depois de ter sido eleito o Jogador do Mês de agosto da Premier League.
+
+**Brentford x Chelsea — hoje pela Premier League.**
+
+🔥 A RPF acompanha tudo no **Esquentando o Jogo**.
+
             <span>🌾 RPF INTERIOR</span>
             <strong>O futebol que merece espaço</strong>
             <p>Estaduais, divisões de acesso, Série C, Série D e competições regionais.</p>
