@@ -1031,21 +1031,15 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
     const makeCall = (match, category, emoji) => {
       if (!match) {
         return {
-          category,
-          emoji,
-          match: null, Destaque do Chelsea neste início de Premier League, João Pedro é dúvida para a partida desta sexta-feira contra o Brentford.
-
-Xabi Alonso não confirmou a presença do atacante e afirmou que sua participação ainda é uma possibilidade.
-
-João Pedro chega ao confronto depois de ter sido eleito o Jogador do Mês de agosto da Premier League.
-
-Brentford x Chelsea — hoje pela Premier League.
-
-🔥 A RPF acompanha tudo no Esquentando o Jogo.
-          title: "Sem jogo selecionado no momento",
-          text: "O giro será atualizado quando houver partida desta categoria nos dados do dia.",
-        };
-      }
+        internacional
+  ? {
+      category: "Internacional",
+      emoji: "🌍",
+      match: internacional,
+      title: "João Pedro é dúvida contra o Brentford",
+      text: "Chelsea aguarda definição sobre o atacante para o confronto desta sexta-feira pela Premier League.",
+    }
+  : makeCall(null, "Internacional", "🌍"), 
 
       const home = getHomeName(match);
       const away = getAwayName(match);
