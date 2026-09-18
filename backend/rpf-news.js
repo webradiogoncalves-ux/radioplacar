@@ -1,6 +1,6 @@
 // backend/rpf-news.js
 // ======================================================
-// RPF NEWS — CENTRAL AUTOMÁTICA DE NOTÍCIAS ESPORTIVAS
+// RPF NEWS — CENTRAL AUTOMÁTICA DE FUTEBOL
 // ======================================================
 
 const CACHE_TIME = 10 * 60 * 1000;
@@ -11,10 +11,10 @@ let cache = {
 };
 
 // ======================================================
-// FONTES
+// FONTES RSS
 // ======================================================
 
-const SOURCES = [
+const RSS_SOURCES = [
   {
     name: "UOL Esporte",
     category: "brasil",
@@ -28,10 +28,122 @@ const SOURCES = [
 ];
 
 // ======================================================
-// PALAVRAS PARA CLASSIFICAÇÃO
+// RPF INTERIOR — FGF
+// Fonte oficial para futebol gaúcho
+// ======================================================
+
+const FGF_SOURCE = {
+  name: "FGF",
+  category: "interior",
+  url: "https://www.fgf.com.br/noticias/",
+};
+
+// ======================================================
+// PALAVRAS — FUTEBOL
+// Evita UFC, tênis, F1, basquete etc.
+// ======================================================
+
+const FOOTBALL_WORDS = [
+  "futebol",
+  "gol",
+  "gols",
+  "clube",
+  "clubes",
+  "time",
+  "times",
+  "jogo",
+  "jogos",
+  "partida",
+  "campeonato",
+  "copa",
+  "liga",
+  "seleção",
+  "selecao",
+  "técnico",
+  "tecnico",
+  "treinador",
+  "atacante",
+  "goleiro",
+  "zagueiro",
+  "lateral",
+  "meia",
+  "volante",
+  "contratação",
+  "contratacao",
+  "transferência",
+  "transferencia",
+  "brasileirão",
+  "brasileirao",
+  "libertadores",
+  "sul-americana",
+  "premier league",
+  "champions",
+  "bundesliga",
+  "la liga",
+  "ligue 1",
+  "serie a",
+  "série a",
+  "série b",
+  "serie b",
+  "série c",
+  "serie c",
+  "série d",
+  "serie d",
+  "gauchão",
+  "gauchao",
+
+  // clubes Brasil
+  "flamengo",
+  "fluminense",
+  "vasco",
+  "botafogo",
+  "palmeiras",
+  "corinthians",
+  "são paulo",
+  "sao paulo",
+  "santos",
+  "grêmio",
+  "gremio",
+  "internacional",
+  "cruzeiro",
+  "atlético-mg",
+  "atletico-mg",
+  "bahia",
+  "vitória",
+  "vitoria",
+  "fortaleza",
+  "ceará",
+  "ceara",
+
+  // Europa
+  "chelsea",
+  "arsenal",
+  "liverpool",
+  "manchester",
+  "tottenham",
+  "brentford",
+  "newcastle",
+  "aston villa",
+  "real madrid",
+  "barcelona",
+  "bayern",
+  "borussia",
+  "psg",
+  "juventus",
+  "milan",
+];
+
+// ======================================================
+// INTERIOR
 // ======================================================
 
 const INTERIOR_WORDS = [
+  "divisão de acesso",
+  "divisao de acesso",
+  "gauchão série a2",
+  "gauchao serie a2",
+  "gauchão série b",
+  "gauchao serie b",
   "série c",
   "serie c",
   "série d",
@@ -39,40 +151,47 @@ const INTERIOR_WORDS = [
   "estadual",
   "estaduais",
   "interior",
-  "acesso",
-  "divisão de acesso",
-  "divisao de acesso",
-  "gauchão",
-  "gauchao",
-  "gaúcho",
-  "gaucho",
-  "paulista a2",
-  "paulista a3",
-  "copa fgp",
   "copa fgf",
-  "recopa gaúcha",
-  "recopa gaucha",
+  "copa dunga",
 
+  "brasil-pel",
   "brasil de pelotas",
   "pelotas",
-  "ypiranga",
-  "caxias",
-  "são josé",
-  "sao jose",
-  "avenida",
-  "novo hamburgo",
+  "passo fundo",
+  "lajeadense",
+  "apafut",
   "veranópolis",
   "veranopolis",
+  "santa cruz",
+  "esportivo",
   "gramadense",
+  "aimoré",
+  "aimore",
+  "guarani-va",
+  "glória",
+  "gloria",
+  "gaúcho",
+  "gaucho",
+  "bagé",
+  "bage",
+  "união frederiquense",
+  "uniao frederiquense",
+  "panambi",
+  "cruz alta",
+  "farroupilha",
 ];
+
+// ======================================================
+// INTERNACIONAL
+// ======================================================
 
 const INTERNATIONAL_WORDS = [
   "premier league",
   "champions league",
   "europa league",
   "conference league",
-  "la liga",
   "bundesliga",
+  "la liga",
   "ligue 1",
   "serie a italiana",
 
@@ -82,8 +201,8 @@ const INTERNATIONAL_WORDS = [
   "manchester city",
   "manchester united",
   "tottenham",
-  "newcastle",
   "brentford",
+  "newcastle",
   "aston villa",
 
   "real madrid",
@@ -102,21 +221,37 @@ const INTERNATIONAL_WORDS = [
   "milan",
   "juventus",
 
-  "inglaterra",
-  "espanha",
-  "frança",
-  "franca",
-  "alemanha",
-  "itália",
-  "italia",
-  "portugal",
-  "holanda",
-  "bélgica",
-  "belgica",
+  "seleção inglesa",
+  "selecao inglesa",
+  "seleção espanhola",
+  "selecao espanhola",
+  "seleção francesa",
+  "selecao francesa",
+  "seleção italiana",
+  "selecao italiana",
+  "seleção alemã",
+  "selecao alema",
+  "seleção portuguesa",
+  "selecao portuguesa",
+  "seleção holandesa",
+  "selecao holandesa",
 ];
 
 // ======================================================
-// LIMPEZA
+// NORMALIZAÇÃO
+// ======================================================
+
+function normalize(value = "") {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// ======================================================
+// DECODIFICAR HTML
 // ======================================================
 
 function decodeEntities(value = "") {
@@ -124,31 +259,83 @@ function decodeEntities(value = "") {
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
+    .replace(/&#34;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/&apos;/gi, "'")
     .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">");
+    .replace(/&gt;/gi, ">")
+    .replace(/&#8211;/gi, "–")
+    .replace(/&#8212;/gi, "—")
+    .replace(/&#8216;/gi, "'")
+    .replace(/&#8217;/gi, "'")
+    .replace(/&#8220;/gi, '"')
+    .replace(/&#8221;/gi, '"');
 }
 
+// ======================================================
+// CORRIGIR UTF-8 MAL INTERPRETADO
+// ======================================================
+
+function repairEncoding(value = "") {
+  let text = String(value);
+
+  // Só tenta reparar quando existem sinais típicos
+  // de UTF-8 interpretado incorretamente.
+  if (
+    /Ã.|Â.|â€|â€™|â€œ|â€/.test(text)
+  ) {
+    try {
+      const repaired = Buffer
+        .from(text, "latin1")
+        .toString("utf8");
+
+      if (
+        !repaired.includes("�") ||
+        text.includes("�")
+      ) {
+        text = repaired;
+      }
+    } catch {
+      // mantém original
+    }
+  }
+
+  return text;
+}
+
+// ======================================================
+// LIMPAR TEXTO
+// ======================================================
+
 function cleanText(value = "") {
-  return decodeEntities(
-    String(value)
-      .replace(/<!\[CDATA\[|\]\]>/g, "")
+  let text = String(value);
 
-      // códigos internos do oGol
-      // {PLAYER_LINK|123|Nome}
-      // {TEAM_LINK|123|Nome}
-      // {COACH_LINK|123|Nome}
-      // {COMPETITION_LINK|123|Nome}
-      .replace(
-        /\{[A-Z_]+_LINK\|[^|}]+\|([^}]+)\}/g,
-        "$1"
-      )
+  text = text
+    .replace(/<!\[CDATA\[|\]\]>/g, "")
 
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]*>/g, " ")
-  )
+    // oGol:
+    // {PLAYER_LINK|123|Nome}
+    .replace(
+      /\{[A-Z_]+_LINK\|[^|}]+\|([^}]+)\}/g,
+      "$1"
+    )
+
+    .replace(
+      /<script\b[^>]*>[\s\S]*?<\/script>/gi,
+      " "
+    )
+
+    .replace(
+      /<style\b[^>]*>[\s\S]*?<\/style>/gi,
+      " "
+    )
+
+    .replace(/<[^>]*>/g, " ");
+
+  text = decodeEntities(text);
+  text = repairEncoding(text);
+
+  return text
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -158,6 +345,10 @@ function cleanUrl(value = "") {
     .replace(/\s+/g, "")
     .trim();
 }
+
+// ======================================================
+// XML
+// ======================================================
 
 function getXmlValue(xml, tag) {
   const regex = new RegExp(
@@ -173,15 +364,20 @@ function getXmlValue(xml, tag) {
 }
 
 // ======================================================
-// ID ESTÁVEL
+// ID
 // ======================================================
 
 function createId(source, title, link) {
-  const value = `${source}-${title}-${link}`;
+  const value =
+    `${source}-${title}-${link}`;
 
   let hash = 0;
 
-  for (let i = 0; i < value.length; i++) {
+  for (
+    let i = 0;
+    i < value.length;
+    i++
+  ) {
     hash =
       (hash << 5) -
       hash +
@@ -191,52 +387,6 @@ function createId(source, title, link) {
   }
 
   return `rpf-${Math.abs(hash)}`;
-}
-
-// ======================================================
-// NORMALIZAÇÃO PARA COMPARAÇÃO
-// ======================================================
-
-function normalize(value = "") {
-  return String(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-// ======================================================
-// CLASSIFICAR NOTÍCIA
-// ======================================================
-
-function detectCategory(
-  title,
-  description,
-  defaultCategory = "brasil"
-) {
-  const text = normalize(
-    `${title} ${description}`
-  );
-
-  const interior =
-    INTERIOR_WORDS.some((word) =>
-      text.includes(normalize(word))
-    );
-
-  if (interior) {
-    return "interior";
-  }
-
-  const international =
-    INTERNATIONAL_WORDS.some((word) =>
-      text.includes(normalize(word))
-    );
-
-  if (international) {
-    return "internacional";
-  }
-
-  return defaultCategory;
 }
 
 // ======================================================
@@ -250,11 +400,75 @@ function safeDate(value) {
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
     return new Date().toISOString();
   }
 
   return date.toISOString();
+}
+
+// ======================================================
+// É FUTEBOL?
+// ======================================================
+
+function isFootball(
+  title,
+  description
+) {
+  const text =
+    normalize(
+      `${title} ${description}`
+    );
+
+  return FOOTBALL_WORDS.some(
+    (word) =>
+      text.includes(
+        normalize(word)
+      )
+  );
+}
+
+// ======================================================
+// CLASSIFICAÇÃO
+// ======================================================
+
+function detectCategory(
+  title,
+  description,
+  defaultCategory = "brasil"
+) {
+  const text =
+    normalize(
+      `${title} ${description}`
+    );
+
+  if (
+    INTERIOR_WORDS.some(
+      (word) =>
+        text.includes(
+          normalize(word)
+        )
+    )
+  ) {
+    return "interior";
+  }
+
+  if (
+    INTERNATIONAL_WORDS.some(
+      (word) =>
+        text.includes(
+          normalize(word)
+        )
+    )
+  ) {
+    return "internacional";
+  }
+
+  return defaultCategory;
 }
 
 // ======================================================
@@ -263,18 +477,24 @@ function safeDate(value) {
 
 async function fetchFeed(source) {
   try {
-    const response = await fetch(source.url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 RPF-Placar/1.0",
+    const response =
+      await fetch(
+        source.url,
+        {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 RPF-Placar/1.0",
 
-        Accept:
-          "application/rss+xml, application/xml, text/xml, */*",
-      },
+            Accept:
+              "application/rss+xml, application/xml, text/xml, */*",
+          },
 
-      signal:
-        AbortSignal.timeout(12000),
-    });
+          signal:
+            AbortSignal.timeout(
+              12000
+            ),
+        }
+      );
 
     if (!response.ok) {
       console.error(
@@ -284,7 +504,26 @@ async function fetchFeed(source) {
       return [];
     }
 
-    const xml = await response.text();
+    const buffer =
+      Buffer.from(
+        await response.arrayBuffer()
+      );
+
+    // Primeiro tenta UTF-8.
+    let xml =
+      buffer.toString("utf8");
+
+    // Caso a fonte venha com charset antigo.
+    if (
+      xml.includes("�") &&
+      !xml
+        .slice(0, 300)
+        .toLowerCase()
+        .includes("utf-8")
+    ) {
+      xml =
+        buffer.toString("latin1");
+    }
 
     const items =
       xml.match(
@@ -293,10 +532,15 @@ async function fetchFeed(source) {
 
     const news = [];
 
-    for (const item of items) {
+    for (
+      const item of items
+    ) {
       const title =
         cleanText(
-          getXmlValue(item, "title")
+          getXmlValue(
+            item,
+            "title"
+          )
         );
 
       const description =
@@ -309,7 +553,10 @@ async function fetchFeed(source) {
 
       const link =
         cleanUrl(
-          getXmlValue(item, "link")
+          getXmlValue(
+            item,
+            "link"
+          )
         );
 
       const pubDate =
@@ -318,7 +565,20 @@ async function fetchFeed(source) {
           "pubDate"
         );
 
-      if (!title || !link) {
+      if (
+        !title ||
+        !link
+      ) {
+        continue;
+      }
+
+      // RPF é futebol.
+      if (
+        !isFootball(
+          title,
+          description
+        )
+      ) {
         continue;
       }
 
@@ -341,12 +601,14 @@ async function fetchFeed(source) {
 
         title,
 
-        // resumo curto para não jogar matéria inteira
-        // dentro do RPF
         text:
-          description
-            ? description.slice(0, 320)
-            : title,
+          (
+            description ||
+            title
+          ).slice(
+            0,
+            320
+          ),
 
         source:
           source.name,
@@ -355,14 +617,279 @@ async function fetchFeed(source) {
           link,
 
         publishedAt:
-          safeDate(pubDate),
+          safeDate(
+            pubDate
+          ),
       });
     }
 
     return news;
   } catch (error) {
     console.error(
-      `[RPF NEWS] Falha em ${source.name}:`,
+      `[RPF NEWS] Erro em ${source.name}:`,
+      error.message
+    );
+
+    return [];
+  }
+}
+
+// ======================================================
+// FGF — EXTRAÇÃO DO RPF INTERIOR
+// ======================================================
+
+function parseFgfDate(
+  day,
+  month,
+  year,
+  time
+) {
+  const months = {
+    JAN: 0,
+    FEV: 1,
+    MAR: 2,
+    ABR: 3,
+    MAI: 4,
+    JUN: 5,
+    JUL: 6,
+    AGO: 7,
+    SET: 8,
+    OUT: 9,
+    NOV: 10,
+    DEZ: 11,
+  };
+
+  const monthNumber =
+    months[
+      String(month)
+        .toUpperCase()
+    ];
+
+  if (
+    monthNumber ===
+    undefined
+  ) {
+    return new Date()
+      .toISOString();
+  }
+
+  const [
+    hour = "12",
+    minute = "00",
+  ] =
+    String(time || "")
+      .split(":");
+
+  // horário aproximado em UTC-3
+  const date =
+    new Date(
+      Date.UTC(
+        Number(year),
+        monthNumber,
+        Number(day),
+        Number(hour) + 3,
+        Number(minute),
+        0
+      )
+    );
+
+  return date.toISOString();
+}
+
+async function fetchFgfInterior() {
+  try {
+    const response =
+      await fetch(
+        FGF_SOURCE.url,
+        {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 RPF-Placar/1.0",
+
+            Accept:
+              "text/html,application/xhtml+xml",
+          },
+
+          signal:
+            AbortSignal.timeout(
+              12000
+            ),
+        }
+      );
+
+    if (!response.ok) {
+      console.error(
+        `[RPF NEWS] FGF: HTTP ${response.status}`
+      );
+
+      return [];
+    }
+
+    const html =
+      Buffer.from(
+        await response.arrayBuffer()
+      ).toString("utf8");
+
+    // ==================================================
+    // Captura links de notícias
+    // ==================================================
+
+    const linkRegex =
+      /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+    const candidates = [];
+
+    let match;
+
+    while (
+      (
+        match =
+          linkRegex.exec(html)
+      ) !== null
+    ) {
+      let url =
+        cleanUrl(
+          match[1]
+        );
+
+      const title =
+        cleanText(
+          match[2]
+        );
+
+      if (
+        !url ||
+        !title ||
+        title.length < 20
+      ) {
+        continue;
+      }
+
+      const normalizedTitle =
+        normalize(title);
+
+      const interior =
+        INTERIOR_WORDS.some(
+          (word) =>
+            normalizedTitle.includes(
+              normalize(word)
+            )
+        );
+
+      if (!interior) {
+        continue;
+      }
+
+      if (
+        url.startsWith("/")
+      ) {
+        url =
+          `https://www.fgf.com.br${url}`;
+      }
+
+      if (
+        !/^https?:\/\//i.test(
+          url
+        )
+      ) {
+        continue;
+      }
+
+      candidates.push({
+        title,
+        url,
+      });
+    }
+
+    // ==================================================
+    // Captura datas disponíveis no HTML
+    // ==================================================
+
+    const dates = [];
+
+    const dateRegex =
+      /(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+(\d{4})\s*-\s*(\d{1,2}:\d{2})/gi;
+
+    let dateMatch;
+
+    while (
+      (
+        dateMatch =
+          dateRegex.exec(html)
+      ) !== null
+    ) {
+      dates.push(
+        parseFgfDate(
+          dateMatch[1],
+          dateMatch[2],
+          dateMatch[3],
+          dateMatch[4]
+        )
+      );
+    }
+
+    // ==================================================
+    // Remove repetidos
+    // ==================================================
+
+    const seen =
+      new Set();
+
+    const unique =
+      candidates.filter(
+        (item) => {
+          const key =
+            normalize(
+              item.title
+            );
+
+          if (
+            seen.has(key)
+          ) {
+            return false;
+          }
+
+          seen.add(key);
+
+          return true;
+        }
+      );
+
+    return unique
+      .slice(0, 20)
+      .map(
+        (item, index) => ({
+          id:
+            createId(
+              "FGF",
+              item.title,
+              item.url
+            ),
+
+          category:
+            "interior",
+
+          title:
+            item.title,
+
+          text:
+            item.title,
+
+          source:
+            "FGF",
+
+          url:
+            item.url,
+
+          publishedAt:
+            dates[index] ||
+            new Date()
+              .toISOString(),
+        })
+      );
+  } catch (error) {
+    console.error(
+      "[RPF NEWS] Erro FGF:",
       error.message
     );
 
@@ -374,33 +901,46 @@ async function fetchFeed(source) {
 // DUPLICADAS
 // ======================================================
 
-function removeDuplicates(items = []) {
-  const used = new Set();
+function removeDuplicates(
+  items = []
+) {
+  const used =
+    new Set();
 
-  return items.filter((item) => {
-    const key =
-      normalize(item.title)
-        .replace(/[^a-z0-9]/g, "");
+  return items.filter(
+    (item) => {
+      const key =
+        normalize(
+          item.title
+        ).replace(
+          /[^a-z0-9]/g,
+          ""
+        );
 
-    if (!key) {
-      return false;
+      if (!key) {
+        return false;
+      }
+
+      if (
+        used.has(key)
+      ) {
+        return false;
+      }
+
+      used.add(key);
+
+      return true;
     }
-
-    if (used.has(key)) {
-      return false;
-    }
-
-    used.add(key);
-
-    return true;
-  });
+  );
 }
 
 // ======================================================
 // ORDENAR
 // ======================================================
 
-function sortNewest(items = []) {
+function sortNewest(
+  items = []
+) {
   return [...items].sort(
     (a, b) =>
       new Date(
@@ -413,31 +953,40 @@ function sortNewest(items = []) {
 }
 
 // ======================================================
-// CARREGAR CENTRAL RPF
+// CARREGAR CENTRAL
 // ======================================================
 
 async function loadRpfNews() {
-  const now = Date.now();
+  const now =
+    Date.now();
 
   if (
     cache.data &&
-    now - cache.updatedAt <
+    now -
+      cache.updatedAt <
       CACHE_TIME
   ) {
     return cache.data;
   }
 
   const results =
-    await Promise.allSettled(
-      SOURCES.map(
+    await Promise.allSettled([
+      ...RSS_SOURCES.map(
         (source) =>
-          fetchFeed(source)
-      )
-    );
+          fetchFeed(
+            source
+          )
+      ),
+
+      fetchFgfInterior(),
+    ]);
 
   let allNews = [];
 
-  for (const result of results) {
+  for (
+    const result
+    of results
+  ) {
     if (
       result.status ===
       "fulfilled"
@@ -487,7 +1036,7 @@ async function loadRpfNews() {
       ...brasil,
       ...internacional,
       ...interior,
-    ]).slice(0, 24);
+    ]).slice(0, 30);
 
   const data = {
     ok: true,
@@ -511,8 +1060,8 @@ async function loadRpfNews() {
     ticker,
   };
 
-  // Se as fontes falharem temporariamente,
-  // preserva o último cache válido.
+  // Se todas as fontes caírem,
+  // mantém o último resultado bom.
   if (
     allNews.length === 0 &&
     cache.data
@@ -527,7 +1076,9 @@ async function loadRpfNews() {
     };
   }
 
-  if (allNews.length > 0) {
+  if (
+    allNews.length > 0
+  ) {
     cache = {
       updatedAt: now,
       data,
