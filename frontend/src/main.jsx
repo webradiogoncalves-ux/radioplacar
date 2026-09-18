@@ -1320,6 +1320,16 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
     }
   }
 `}</style>
+
+<section className="home-block">
+  <div
+    style={{
+      overflow: "hidden",
+      borderRadius: 18,
+      border: "1px solid rgba(70,255,115,.32)",
+      background: "#030604",
+      boxShadow: "0 20px 55px rgba(0,0,0,.45)",
+    }}
     {/* ================= CABEÇALHO ================= */}
     <div
       style={{
