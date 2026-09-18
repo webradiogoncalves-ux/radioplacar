@@ -1255,117 +1255,461 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
         </div>
       </section>
 
-      {/* RPF EM 3 MINUTOS */}
-      <section className="home-block rpf-three-minutes">
-        <div className="section-heading">
-          <div>
-            <span className="section-kicker">⚡ GIRO RÁPIDO</span>
-            <h2>RPF em 3 Minutos</h2>
-          </div>
-          <Clock3 size={21} />
-        </div>
-        <p className="rpf-section-description">
-          O giro rápido do RPF PLACAR em vídeo, direto na tela inicial.
-        </p>
+ {/* =====================================================
+          RPF 3 MINUTOS — PADRÃO TV RPF
+          ===================================================== */}
 
+      <section className="home-block rpf-three-minutes">
         <div
           style={{
             overflow: "hidden",
-            borderRadius: 18,
-            background: "#050807",
-            border: "1px solid rgba(80,255,145,.18)",
-            marginBottom: 16,
+            borderRadius: 20,
+            background: "#020403",
+            border: "1px solid rgba(73,255,126,.35)",
+            boxShadow: "0 18px 45px rgba(0,0,0,.35)",
           }}
         >
-          <video
-            controls
-            playsInline
-            preload="metadata"
-            poster=""
-            style={{ width: "100%", display: "block", maxHeight: 520, background: "#000" }}
-          >
-            <source src="/media/rpf-3-minutos.mp4" type="video/mp4" />
-            Seu aparelho não conseguiu reproduzir o vídeo RPF 3 Minutos.
-          </video>
-          <div style={{ padding: "12px 14px 14px" }}>
-            <strong style={{ display: "block" }}>RPF 3 Minutos</strong>
-            <small style={{ opacity: .72 }}>Conteúdo oficial RPF</small>
-          </div>
-        </div>
+          {/* TOPO DO TELEJORNAL */}
 
-        <div className="rpf-three-grid">
-          {rpfThreeMinutes.map((item, index) => (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "11px 14px",
+              background:
+                "linear-gradient(90deg,#07110b 0%,#101712 55%,#07110b 100%)",
+              borderBottom: "2px solid #4dff7c",
+            }}
+          >
+            <div>
+              <strong
+                style={{
+                  display: "block",
+                  fontSize: 18,
+                  fontWeight: 950,
+                  letterSpacing: ".5px",
+                  color: "#fff",
+                }}
+              >
+                RPF 3 MINUTOS
+              </strong>
+
+              <small
+                style={{
+                  color: "#4dff7c",
+                  fontWeight: 800,
+                  letterSpacing: ".8px",
+                }}
+              >
+                JORNAL ESPORTIVO
+              </small>
+            </div>
+
+            <div
+              style={{
+                padding: "6px 9px",
+                borderRadius: 7,
+                background: "#4dff7c",
+                color: "#031006",
+                fontSize: 11,
+                fontWeight: 950,
+              }}
+            >
+              RPF TV
+            </div>
+          </div>
+
+          {/* VÍDEO PRINCIPAL */}
+
+          <div
+            style={{
+              position: "relative",
+              background: "#000",
+            }}
+          >
+            <video
+              controls
+              playsInline
+              preload="metadata"
+              style={{
+                width: "100%",
+                display: "block",
+                maxHeight: 520,
+                background: "#000",
+              }}
+            >
+              <source
+                src="/media/rpf-3-minutos.mp4"
+                type="video/mp4"
+              />
+
+              Seu aparelho não conseguiu reproduzir
+              o vídeo RPF 3 Minutos.
+            </video>
+          </div>
+
+          {/* FAIXA PRINCIPAL */}
+
+          <div
+            style={{
+              padding: "11px 14px",
+              background:
+                "linear-gradient(90deg,#43ff73 0%,#25d958 100%)",
+              color: "#021006",
+            }}
+          >
+            <small
+              style={{
+                display: "block",
+                fontWeight: 950,
+                fontSize: 10,
+                letterSpacing: "1px",
+                marginBottom: 3,
+              }}
+            >
+              ⚡ NOTÍCIAS DO DIA
+            </small>
+
+            <strong
+              style={{
+                display: "block",
+                fontSize: 17,
+                fontWeight: 950,
+                lineHeight: 1.15,
+              }}
+            >
+              Futebol, informação e os destaques
+              em 3 minutos
+            </strong>
+          </div>
+
+          {/* ESQUENTANDO O JOGO */}
+
+          {heroMatch && (
             <button
               type="button"
-              key={`rpf-three-${item.category}`}
-              className={`rpf-three-card ${item.match ? "has-match" : ""}`}
-              onClick={() => item.match && onOpenMatch(item.match)}
-              disabled={!item.match}
+              onClick={() => onOpenMatch(heroMatch)}
+              style={{
+                width: "100%",
+                border: 0,
+                borderBottom:
+                  "1px solid rgba(73,255,126,.18)",
+                background:
+                  "linear-gradient(90deg,#080d09,#111812)",
+                color: "#fff",
+                padding: "14px",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
             >
-              <div className="rpf-three-number">
-                <strong>{index + 1}</strong>
-                <span>{item.emoji}</span>
-              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  marginBottom: 10,
+                }}
+              >
+                <div>
+                  <small
+                    style={{
+                      display: "block",
+                      color: "#4dff7c",
+                      fontWeight: 950,
+                      letterSpacing: ".8px",
+                      marginBottom: 3,
+                    }}
+                  >
+                    🔥 ESQUENTANDO O JOGO
+                  </small>
 
-              <div className="rpf-three-copy">
-                <div className="rpf-three-category-row">
-                  <span>{item.category}</span>
-                  {item.match && (
-                    <small className={`rpf-three-status ${isLive(item.match) ? "live" : ""}`}>
-                      {matchStatus(item.match)}
-                    </small>
-                  )}
+                  <strong
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 950,
+                    }}
+                  >
+                    {getHomeName(heroMatch)} x{" "}
+                    {getAwayName(heroMatch)}
+                  </strong>
                 </div>
 
-                {item.match ? (
-                  <>
-                    <div className="rpf-three-match">
-                      <div className="rpf-three-team">
-                        <TeamBadge
-                          name={getHomeName(item.match)}
-                          logo={getHomeLogo(item.match)}
-                          size="small"
-                        />
-                        <span>{abbreviation(getHomeName(item.match))}</span>
-                      </div>
-
-                      <div className="rpf-three-scorebox">
-                        <strong>
-                          {hasScore(item.match)
-                            ? `${getHomeScore(item.match)} - ${getAwayScore(item.match)}`
-                            : formatTime(item.match)}
-                        </strong>
-                        <small>{isLive(item.match) ? formatClock(item.match) : ""}</small>
-                      </div>
-
-                      <div className="rpf-three-team">
-                        <TeamBadge
-                          name={getAwayName(item.match)}
-                          logo={getAwayLogo(item.match)}
-                          size="small"
-                        />
-                        <span>{abbreviation(getAwayName(item.match))}</span>
-                      </div>
-                    </div>
-
-                    <strong className="rpf-three-title">{item.title}</strong>
-                    <p>{item.text}</p>
-                    <small className="rpf-three-league">{getLeagueName(item.match)}</small>
-                  </>
-                ) : (
-                  <>
-                    <strong className="rpf-three-title">{item.title}</strong>
-                    <p>{item.text}</p>
-                  </>
-                )}
+                <ChevronRight
+                  size={20}
+                  color="#4dff7c"
+                />
               </div>
 
-              {item.match && <ChevronRight className="rpf-three-arrow" size={18} />}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto 1fr",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "12px",
+                  borderRadius: 13,
+                  background: "#030604",
+                  border:
+                    "1px solid rgba(255,255,255,.07)",
+                }}
+              >
+                <div
+                  style={{
+                    textAlign: "center",
+                  }}
+                >
+                  <TeamBadge
+                    name={getHomeName(heroMatch)}
+                    logo={getHomeLogo(heroMatch)}
+                    size="small"
+                  />
+
+                  <strong
+                    style={{
+                      display: "block",
+                      marginTop: 6,
+                      fontSize: 13,
+                    }}
+                  >
+                    {abbreviation(
+                      getHomeName(heroMatch)
+                    )}
+                  </strong>
+                </div>
+
+                <div
+                  style={{
+                    textAlign: "center",
+                  }}
+                >
+                  <small
+                    style={{
+                      display: "block",
+                      color: "#9aa39c",
+                      marginBottom: 3,
+                    }}
+                  >
+                    {getLeagueName(heroMatch)}
+                  </small>
+
+                  <strong
+                    style={{
+                      color: "#4dff7c",
+                      fontSize: 19,
+                    }}
+                  >
+                    {isLive(heroMatch)
+                      ? hasScore(heroMatch)
+                        ? `${getHomeScore(
+                            heroMatch
+                          )} - ${getAwayScore(
+                            heroMatch
+                          )}`
+                        : "AO VIVO"
+                      : isFinished(heroMatch)
+                      ? hasScore(heroMatch)
+                        ? `${getHomeScore(
+                            heroMatch
+                          )} - ${getAwayScore(
+                            heroMatch
+                          )}`
+                        : "ENCERRADO"
+                      : formatTime(heroMatch)}
+                  </strong>
+
+                  <small
+                    style={{
+                      display: "block",
+                      marginTop: 3,
+                      color: "#fff",
+                      opacity: 0.7,
+                    }}
+                  >
+                    {matchStatus(heroMatch)}
+                  </small>
+                </div>
+
+                <div
+                  style={{
+                    textAlign: "center",
+                  }}
+                >
+                  <TeamBadge
+                    name={getAwayName(heroMatch)}
+                    logo={getAwayLogo(heroMatch)}
+                    size="small"
+                  />
+
+                  <strong
+                    style={{
+                      display: "block",
+                      marginTop: 6,
+                      fontSize: 13,
+                    }}
+                  >
+                    {abbreviation(
+                      getAwayName(heroMatch)
+                    )}
+                  </strong>
+                </div>
+              </div>
+
+              <small
+                style={{
+                  display: "block",
+                  marginTop: 10,
+                  color: "#aeb6b0",
+                  lineHeight: 1.4,
+                }}
+              >
+                Informações da partida, horário,
+                competição e preparação para o jogo
+                em destaque no RPF PLACAR.
+              </small>
             </button>
-          ))}
+          )}
+
+          {/* GIRO DE NOTÍCIAS */}
+
+          <div
+            style={{
+              padding: "13px 14px 5px",
+            }}
+          >
+            <small
+              style={{
+                color: "#4dff7c",
+                fontWeight: 950,
+                letterSpacing: ".8px",
+              }}
+            >
+              AGORA NO RPF
+            </small>
+
+            <h3
+              style={{
+                margin: "3px 0 10px",
+                color: "#fff",
+                fontSize: 17,
+              }}
+            >
+              Giro do futebol
+            </h3>
+          </div>
+
+          <div className="rpf-three-grid">
+            {rpfThreeMinutes.map(
+              (item, index) => (
+                <button
+                  type="button"
+                  key={`rpf-tv-${item.category}`}
+                  className={`rpf-three-card ${
+                    item.match ? "has-match" : ""
+                  }`}
+                  onClick={() =>
+                    item.match &&
+                    onOpenMatch(item.match)
+                  }
+                  disabled={!item.match}
+                >
+                  <div className="rpf-three-number">
+                    <strong>{index + 1}</strong>
+                    <span>{item.emoji}</span>
+                  </div>
+
+                  <div className="rpf-three-copy">
+                    <div className="rpf-three-category-row">
+                      <span>
+                        RPF{" "}
+                        {String(
+                          item.category
+                        ).toUpperCase()}
+                      </span>
+
+                      {item.match && (
+                        <small
+                          className={`rpf-three-status ${
+                            isLive(item.match)
+                              ? "live"
+                              : ""
+                          }`}
+                        >
+                          {matchStatus(item.match)}
+                        </small>
+                      )}
+                    </div>
+
+                    <strong className="rpf-three-title">
+                      {item.title}
+                    </strong>
+
+                    <p>{item.text}</p>
+
+                    {item.match && (
+                      <small className="rpf-three-league">
+                        {getLeagueName(
+                          item.match
+                        )}
+                      </small>
+                    )}
+                  </div>
+
+                  {item.match && (
+                    <ChevronRight
+                      className="rpf-three-arrow"
+                      size={18}
+                    />
+                  )}
+                </button>
+              )
+            )}
+          </div>
+
+          {/* RODAPÉ / TICKER */}
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "stretch",
+              marginTop: 10,
+              borderTop:
+                "1px solid rgba(73,255,126,.2)",
+              background: "#000",
+            }}
+          >
+            <strong
+              style={{
+                flexShrink: 0,
+                padding: "9px 10px",
+                background: "#4dff7c",
+                color: "#031006",
+                fontSize: 10,
+                fontWeight: 950,
+              }}
+            >
+              RPF AGORA
+            </strong>
+
+            <div
+              style={{
+                overflow: "hidden",
+                padding: "9px 11px",
+                color: "#fff",
+                fontSize: 11,
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
+              }}
+            >
+              Futebol brasileiro • Premier League •
+              RPF Interior • Jogos do dia • Jornada
+              Esportiva RPF
+            </div>
+          </div>
         </div>
       </section>
-
       {/* RPF TV */}
       <section className="home-block rpf-tv-block">
         <div className="section-heading">
@@ -3660,4 +4004,4 @@ createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
-);
+);     
