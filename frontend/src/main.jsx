@@ -1255,52 +1255,44 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
         </div>
       </section>
 
-      {/* =====================================================
-          RPF 3 MINUTOS — TELA TV PADRÃO RPF
+            {/* =====================================================
+          RPF 3 MINUTOS — PADRÃO TV OFICIAL
           ===================================================== */}
 
       <section className="home-block">
         <div
           style={{
-            background: "#020503",
-            border: "1px solid rgba(70,255,120,.35)",
+            background: "#030604",
+            border: "1px solid rgba(69,255,115,.35)",
             borderRadius: 18,
             overflow: "hidden",
-            boxShadow: "0 18px 50px rgba(0,0,0,.45)",
+            boxShadow: "0 20px 55px rgba(0,0,0,.45)",
           }}
         >
-          {/* CABEÇALHO DA TV */}
+          {/* CABEÇALHO */}
           <div
             style={{
-              minHeight: 56,
-              padding: "9px 13px",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               gap: 10,
+              padding: "10px 13px",
               background:
-                "linear-gradient(90deg,#07110a,#111713,#07110a)",
-              borderBottom: "3px solid #42ff72",
+                "linear-gradient(90deg,#061009,#101712,#061009)",
+              borderBottom: "3px solid #45ff73",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-              }}
-            >
+            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
               <div
                 style={{
-                  width: 40,
-                  height: 40,
+                  width: 42,
+                  height: 42,
                   borderRadius: 8,
-                  background: "#42ff72",
-                  color: "#020603",
                   display: "grid",
                   placeItems: "center",
+                  background: "#45ff73",
+                  color: "#020703",
                   fontWeight: 1000,
-                  fontSize: 16,
                 }}
               >
                 RPF
@@ -1313,7 +1305,6 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
                     color: "#fff",
                     fontSize: 17,
                     fontWeight: 1000,
-                    lineHeight: 1,
                   }}
                 >
                   RPF 3 MINUTOS
@@ -1321,10 +1312,9 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
 
                 <small
                   style={{
-                    color: "#42ff72",
-                    fontSize: 9,
+                    color: "#45ff73",
                     fontWeight: 900,
-                    letterSpacing: "1.2px",
+                    letterSpacing: 1,
                   }}
                 >
                   JORNAL ESPORTIVO
@@ -1332,374 +1322,432 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
               </div>
             </div>
 
-            <div
-              style={{
-                textAlign: "right",
-                color: "#fff",
-              }}
-            >
-              <small
+            <div style={{ textAlign: "right" }}>
+              <strong
                 style={{
                   display: "block",
-                  color: "#42ff72",
-                  fontWeight: 900,
-                  fontSize: 9,
+                  color: "#45ff73",
+                  fontSize: 11,
                 }}
               >
                 RPF TV
-              </small>
-
-              <strong style={{ fontSize: 11 }}>
-                FUTEBOL • NOTÍCIAS
               </strong>
+
+              <small style={{ color: "#b7c0b9" }}>
+                FUTEBOL • INFORMAÇÃO
+              </small>
             </div>
           </div>
 
-          {/* TELA PRINCIPAL 16:9 */}
+          {/* TELA DE TV */}
           <div
             style={{
-              position: "relative",
-              aspectRatio: "16 / 9",
-              minHeight: 260,
               background:
-                "radial-gradient(circle at 35% 40%,#17311e 0%,#09110c 34%,#020403 75%)",
-              overflow: "hidden",
+                "radial-gradient(circle at 35% 40%,#17341f,#08110b 42%,#020403 82%)",
             }}
           >
-            {/* FUNDO DECORATIVO */}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                opacity: 0.18,
-                backgroundImage:
-                  "linear-gradient(rgba(70,255,120,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(70,255,120,.18) 1px,transparent 1px)",
-                backgroundSize: "32px 32px",
-                pointerEvents: "none",
-              }}
-            />
-
             {heroMatch ? (
-              <div
-                style={{
-                  position: "relative",
-                  zIndex: 2,
-                  height: "100%",
-                  display: "grid",
-                  gridTemplateColumns:
-                    "minmax(0,1.65fr) minmax(160px,.75fr)",
-                }}
-              >
-                {/* PAINEL PRINCIPAL */}
+              <>
+                {/* CAMPEONATO */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "9px 12px",
+                    background: "rgba(0,0,0,.72)",
+                    borderBottom:
+                      "1px solid rgba(69,255,115,.18)",
+                  }}
+                >
+                  <div>
+                    <small
+                      style={{
+                        display: "block",
+                        color: "#45ff73",
+                        fontWeight: 1000,
+                        fontSize: 9,
+                      }}
+                    >
+                      CAMPEONATO
+                    </small>
+
+                    <strong
+                      style={{
+                        color: "#fff",
+                        fontSize: 13,
+                      }}
+                    >
+                      {getLeagueName(heroMatch)}
+                    </strong>
+                  </div>
+
+                  <span
+                    style={{
+                      padding: "5px 8px",
+                      borderRadius: 5,
+                      background: isLive(heroMatch)
+                        ? "#45ff73"
+                        : "#152219",
+                      color: isLive(heroMatch)
+                        ? "#021006"
+                        : "#45ff73",
+                      fontWeight: 1000,
+                      fontSize: 9,
+                    }}
+                  >
+                    {isLive(heroMatch)
+                      ? "● AO VIVO"
+                      : matchStatus(heroMatch)}
+                  </span>
+                </div>
+
+                {/* ESQUENTANDO */}
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    background:
+                      "linear-gradient(90deg,#45ff73,#22c94f)",
+                    color: "#021006",
+                  }}
+                >
+                  <small
+                    style={{
+                      display: "block",
+                      fontWeight: 1000,
+                      letterSpacing: 1,
+                    }}
+                  >
+                    🔥 RPF 3 MINUTOS
+                  </small>
+
+                  <strong
+                    style={{
+                      display: "block",
+                      fontSize: 20,
+                      fontWeight: 1000,
+                    }}
+                  >
+                    ESQUENTANDO O JOGO
+                  </strong>
+                </div>
+
+                {/* CONFRONTO */}
                 <button
                   type="button"
                   onClick={() => onOpenMatch(heroMatch)}
                   style={{
-                    position: "relative",
+                    width: "100%",
                     border: 0,
-                    padding: 0,
-                    textAlign: "left",
                     color: "#fff",
-                    background: "transparent",
                     cursor: "pointer",
-                    overflow: "hidden",
+                    background: "transparent",
+                    padding: "20px 14px 18px",
                   }}
                 >
                   <div
                     style={{
-                      height: "100%",
-                      padding: "18px 18px 68px",
-                      display: "flex",
-                      flexDirection: "column",
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto 1fr",
+                      alignItems: "center",
+                      gap: 12,
                     }}
                   >
-                    {/* CAMPEONATO */}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 7,
-                        marginBottom: 12,
-                      }}
-                    >
-                      <span
-                        style={{
-                          background: "#42ff72",
-                          color: "#031006",
-                          padding: "5px 8px",
-                          borderRadius: 5,
-                          fontWeight: 1000,
-                          fontSize: 9,
-                        }}
-                      >
-                        {isLive(heroMatch)
-                          ? "● AO VIVO"
-                          : "ESQUENTANDO O JOGO"}
-                      </span>
+                    {/* MANDANTE */}
+                    <div style={{ textAlign: "center" }}>
+                      <TeamBadge
+                        name={getHomeName(heroMatch)}
+                        logo={getHomeLogo(heroMatch)}
+                      />
 
-                      <span
-                        style={{
-                          color: "#c8d1ca",
-                          fontWeight: 800,
-                          fontSize: 10,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {getLeagueName(heroMatch)}
-                      </span>
-                    </div>
-
-                    {/* TIMES */}
-                    <div
-                      style={{
-                        flex: 1,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "clamp(12px,4vw,36px)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          textAlign: "center",
-                          minWidth: 70,
-                        }}
-                      >
-                        <TeamBadge
-                          name={getHomeName(heroMatch)}
-                          logo={getHomeLogo(heroMatch)}
-                        />
-
-                        <strong
-                          style={{
-                            display: "block",
-                            marginTop: 7,
-                            fontSize: "clamp(13px,2vw,19px)",
-                          }}
-                        >
-                          {abbreviation(
-                            getHomeName(heroMatch)
-                          )}
-                        </strong>
-
-                        <small
-                          style={{
-                            display: "block",
-                            maxWidth: 120,
-                            color: "#b7c0b9",
-                            fontSize: 9,
-                          }}
-                        >
-                          {getHomeName(heroMatch)}
-                        </small>
-                      </div>
-
-                      <div
-                        style={{
-                          textAlign: "center",
-                          minWidth: 76,
-                        }}
-                      >
-                        <small
-                          style={{
-                            color: "#42ff72",
-                            fontWeight: 1000,
-                            fontSize: 9,
-                          }}
-                        >
-                          {matchStatus(heroMatch)}
-                        </small>
-
-                        <strong
-                          style={{
-                            display: "block",
-                            color: "#fff",
-                            fontSize: "clamp(24px,5vw,46px)",
-                            lineHeight: 1.05,
-                            margin: "5px 0",
-                          }}
-                        >
-                          {isLive(heroMatch) ||
-                          isFinished(heroMatch)
-                            ? hasScore(heroMatch)
-                              ? `${getHomeScore(
-                                  heroMatch
-                                )} - ${getAwayScore(
-                                  heroMatch
-                                )}`
-                              : "X"
-                            : formatTime(heroMatch)}
-                        </strong>
-
-                        {isLive(heroMatch) && (
-                          <small
-                            style={{
-                              color: "#42ff72",
-                              fontWeight: 900,
-                            }}
-                          >
-                            {formatClock(heroMatch)}
-                          </small>
-                        )}
-
-                        {!isLive(heroMatch) &&
-                          !isFinished(heroMatch) && (
-                            <small
-                              style={{
-                                color: "#9ca69f",
-                                fontSize: 9,
-                              }}
-                            >
-                              HORÁRIO DO JOGO
-                            </small>
-                          )}
-                      </div>
-
-                      <div
-                        style={{
-                          textAlign: "center",
-                          minWidth: 70,
-                        }}
-                      >
-                        <TeamBadge
-                          name={getAwayName(heroMatch)}
-                          logo={getAwayLogo(heroMatch)}
-                        />
-
-                        <strong
-                          style={{
-                            display: "block",
-                            marginTop: 7,
-                            fontSize: "clamp(13px,2vw,19px)",
-                          }}
-                        >
-                          {abbreviation(
-                            getAwayName(heroMatch)
-                          )}
-                        </strong>
-
-                        <small
-                          style={{
-                            display: "block",
-                            maxWidth: 120,
-                            color: "#b7c0b9",
-                            fontSize: 9,
-                          }}
-                        >
-                          {getAwayName(heroMatch)}
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* GC / MANCHETE */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "inline-block",
-                        background: "#42ff72",
-                        color: "#021006",
-                        padding: "5px 10px",
-                        fontSize: 9,
-                        fontWeight: 1000,
-                        letterSpacing: ".7px",
-                      }}
-                    >
-                      🔥 ESQUENTANDO O JOGO
-                    </div>
-
-                    <div
-                      style={{
-                        padding: "8px 12px",
-                        background:
-                          "rgba(0,0,0,.92)",
-                        borderTop:
-                          "1px solid rgba(66,255,114,.35)",
-                      }}
-                    >
                       <strong
                         style={{
                           display: "block",
-                          fontSize:
-                            "clamp(12px,2vw,18px)",
-                          lineHeight: 1.15,
+                          marginTop: 8,
+                          fontSize: 18,
                         }}
                       >
-                        {getHomeName(heroMatch)} x{" "}
-                        {getAwayName(heroMatch)}
+                        {abbreviation(getHomeName(heroMatch))}
                       </strong>
 
                       <small
                         style={{
-                          color: "#b9c2bb",
-                          fontSize: 9,
+                          display: "block",
+                          marginTop: 2,
+                          color: "#aeb7b0",
                         }}
                       >
-                        {getLeagueName(heroMatch)} •
-                        acompanhe no RPF PLACAR
+                        {getHomeName(heroMatch)}
+                      </small>
+                    </div>
+
+                    {/* CENTRO */}
+                    <div style={{ textAlign: "center" }}>
+                      <small
+                        style={{
+                          color: "#45ff73",
+                          fontWeight: 1000,
+                        }}
+                      >
+                        {isLive(heroMatch)
+                          ? formatClock(heroMatch)
+                          : getLeagueName(heroMatch)}
+                      </small>
+
+                      <strong
+                        style={{
+                          display: "block",
+                          margin: "5px 0",
+                          fontSize: "clamp(28px,7vw,48px)",
+                          lineHeight: 1,
+                        }}
+                      >
+                        {isLive(heroMatch) ||
+                        isFinished(heroMatch)
+                          ? hasScore(heroMatch)
+                            ? `${getHomeScore(heroMatch)} - ${getAwayScore(
+                                heroMatch
+                              )}`
+                            : "X"
+                          : formatTime(heroMatch)}
+                      </strong>
+
+                      <small style={{ color: "#aeb7b0" }}>
+                        {isLive(heroMatch)
+                          ? "TEMPO E PLACAR"
+                          : isFinished(heroMatch)
+                          ? "RESULTADO FINAL"
+                          : "HORÁRIO DA PARTIDA"}
+                      </small>
+                    </div>
+
+                    {/* VISITANTE */}
+                    <div style={{ textAlign: "center" }}>
+                      <TeamBadge
+                        name={getAwayName(heroMatch)}
+                        logo={getAwayLogo(heroMatch)}
+                      />
+
+                      <strong
+                        style={{
+                          display: "block",
+                          marginTop: 8,
+                          fontSize: 18,
+                        }}
+                      >
+                        {abbreviation(getAwayName(heroMatch))}
+                      </strong>
+
+                      <small
+                        style={{
+                          display: "block",
+                          marginTop: 2,
+                          color: "#aeb7b0",
+                        }}
+                      >
+                        {getAwayName(heroMatch)}
                       </small>
                     </div>
                   </div>
                 </button>
 
-                {/* COLUNA DE NOTÍCIAS */}
-                <aside
+                {/* GC PRINCIPAL */}
+                <div
                   style={{
-                    background: "rgba(3,7,4,.94)",
-                    borderLeft:
-                      "1px solid rgba(66,255,114,.28)",
-                    overflow: "hidden",
+                    margin: "0 12px 12px",
+                    background: "#050806",
+                    borderLeft: "4px solid #45ff73",
+                    borderTop:
+                      "1px solid rgba(255,255,255,.07)",
+                    borderRight:
+                      "1px solid rgba(255,255,255,.07)",
+                    borderBottom:
+                      "1px solid rgba(255,255,255,.07)",
+                    padding: "10px 11px",
+                  }}
+                >
+                  <small
+                    style={{
+                      display: "block",
+                      color: "#45ff73",
+                      fontWeight: 1000,
+                      marginBottom: 3,
+                    }}
+                  >
+                    DESTAQUE RPF
+                  </small>
+
+                  <strong
+                    style={{
+                      display: "block",
+                      color: "#fff",
+                      fontSize: 16,
+                    }}
+                  >
+                    {getHomeName(heroMatch)} x{" "}
+                    {getAwayName(heroMatch)}
+                  </strong>
+
+                  <span
+                    style={{
+                      display: "block",
+                      color: "#aeb7b0",
+                      fontSize: 11,
+                      marginTop: 4,
+                    }}
+                  >
+                    {getLeagueName(heroMatch)} •{" "}
+                    {isLive(heroMatch)
+                      ? "partida em andamento"
+                      : isFinished(heroMatch)
+                      ? "partida encerrada"
+                      : `bola rola às ${formatTime(heroMatch)}`}
+                  </span>
+                </div>
+
+                {/* INFORMAÇÕES DO JOGO */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3,1fr)",
+                    gap: 1,
+                    background: "rgba(69,255,115,.15)",
+                    borderTop:
+                      "1px solid rgba(69,255,115,.18)",
+                    borderBottom:
+                      "1px solid rgba(69,255,115,.18)",
                   }}
                 >
                   <div
                     style={{
-                      padding: "8px 10px",
-                      background: "#42ff72",
-                      color: "#031006",
+                      padding: "10px 7px",
+                      background: "#080d09",
+                      textAlign: "center",
                     }}
                   >
+                    <small style={{ color: "#7f8981" }}>
+                      CASA
+                    </small>
                     <strong
                       style={{
+                        display: "block",
+                        color: "#fff",
                         fontSize: 10,
-                        fontWeight: 1000,
+                        marginTop: 3,
                       }}
                     >
-                      RPF AGORA
+                      {getHomeName(heroMatch)}
                     </strong>
                   </div>
 
-                  {rpfThreeMinutes.map(
-                    (item, index) => (
+                  <div
+                    style={{
+                      padding: "10px 7px",
+                      background: "#080d09",
+                      textAlign: "center",
+                    }}
+                  >
+                    <small style={{ color: "#7f8981" }}>
+                      COMPETIÇÃO
+                    </small>
+                    <strong
+                      style={{
+                        display: "block",
+                        color: "#45ff73",
+                        fontSize: 10,
+                        marginTop: 3,
+                      }}
+                    >
+                      {getLeagueName(heroMatch)}
+                    </strong>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "10px 7px",
+                      background: "#080d09",
+                      textAlign: "center",
+                    }}
+                  >
+                    <small style={{ color: "#7f8981" }}>
+                      VISITANTE
+                    </small>
+                    <strong
+                      style={{
+                        display: "block",
+                        color: "#fff",
+                        fontSize: 10,
+                        marginTop: 3,
+                      }}
+                    >
+                      {getAwayName(heroMatch)}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* PAINEL DE NOTÍCIAS */}
+                <div style={{ padding: "13px 12px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 9,
+                    }}
+                  >
+                    <div>
+                      <small
+                        style={{
+                          display: "block",
+                          color: "#45ff73",
+                          fontWeight: 1000,
+                        }}
+                      >
+                        RPF AGORA
+                      </small>
+
+                      <strong style={{ color: "#fff" }}>
+                        Notícias do dia
+                      </strong>
+                    </div>
+
+                    <span
+                      style={{
+                        color: "#45ff73",
+                        fontSize: 10,
+                        fontWeight: 900,
+                      }}
+                    >
+                      3 MIN
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit,minmax(150px,1fr))",
+                      gap: 8,
+                    }}
+                  >
+                    {rpfThreeMinutes.map((item, index) => (
                       <button
                         type="button"
-                        key={`rpf-tv-news-${item.category}`}
-                        disabled={!item.match}
+                        key={`rpf-news-${item.category}`}
                         onClick={() =>
-                          item.match &&
-                          onOpenMatch(item.match)
+                          item.match && onOpenMatch(item.match)
                         }
+                        disabled={!item.match}
                         style={{
-                          width: "100%",
-                          minHeight: 65,
-                          padding: "8px 9px",
-                          border: 0,
-                          borderBottom:
+                          border:
                             "1px solid rgba(255,255,255,.08)",
+                          borderRadius: 9,
+                          padding: 10,
                           background:
-                            index % 2
-                              ? "#080d09"
-                              : "#050806",
-                          color: "#fff",
+                            index === 0 ? "#0b160e" : "#070b08",
                           textAlign: "left",
+                          color: "#fff",
                           cursor: item.match
                             ? "pointer"
                             : "default",
@@ -1708,138 +1756,107 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
                         <small
                           style={{
                             display: "block",
-                            color: "#42ff72",
-                            fontSize: 8,
+                            color: "#45ff73",
                             fontWeight: 1000,
-                            marginBottom: 3,
+                            fontSize: 9,
+                            marginBottom: 4,
                           }}
                         >
                           {item.emoji} RPF{" "}
-                          {String(
-                            item.category
-                          ).toUpperCase()}
+                          {String(item.category).toUpperCase()}
                         </small>
 
                         <strong
                           style={{
                             display: "block",
-                            fontSize: 10,
+                            fontSize: 12,
                             lineHeight: 1.2,
-                            marginBottom: 3,
                           }}
                         >
                           {item.title}
                         </strong>
 
-                        <small
+                        <p
                           style={{
-                            display: "block",
-                            color: "#9ea7a0",
-                            fontSize: 8,
-                            lineHeight: 1.2,
+                            color: "#aeb7b0",
+                            fontSize: 10,
+                            lineHeight: 1.35,
+                            margin: "5px 0 0",
                           }}
                         >
                           {item.text}
-                        </small>
+                        </p>
                       </button>
-                    )
-                  )}
-                </aside>
-              </div>
+                    ))}
+                  </div>
+                </div>
+              </>
             ) : (
               <div
                 style={{
-                  position: "relative",
-                  zIndex: 2,
-                  height: "100%",
+                  minHeight: 330,
                   display: "grid",
                   placeItems: "center",
                   padding: 30,
                   textAlign: "center",
-                  color: "#fff",
                 }}
               >
                 <div>
                   <strong
                     style={{
                       display: "block",
-                      color: "#42ff72",
+                      color: "#45ff73",
                       fontSize: 22,
                     }}
                   >
                     RPF 3 MINUTOS
                   </strong>
 
-                  <span
-                    style={{
-                      color: "#aab3ac",
-                    }}
-                  >
-                    Aguardando a programação
-                    esportiva do dia.
+                  <span style={{ color: "#aeb7b0" }}>
+                    Aguardando os jogos do dia.
                   </span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* BARRA DE BAIXO */}
+          {/* TICKER TV */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "auto 1fr",
-              minHeight: 38,
+              gridTemplateColumns: "auto minmax(0,1fr)",
               background: "#000",
-              borderTop: "2px solid #42ff72",
+              borderTop: "3px solid #45ff73",
             }}
           >
-            <div
+            <strong
               style={{
-                padding: "10px 12px",
-                background: "#42ff72",
-                color: "#031006",
-                fontSize: 9,
-                fontWeight: 1000,
+                padding: "10px 11px",
+                background: "#45ff73",
+                color: "#021006",
+                fontSize: 10,
                 whiteSpace: "nowrap",
               }}
             >
               RPF AGORA
-            </div>
+            </strong>
 
             <div
               style={{
                 padding: "10px 12px",
-                color: "#fff",
                 overflow: "hidden",
                 whiteSpace: "nowrap",
                 textOverflow: "ellipsis",
-                fontSize: 9,
-                fontWeight: 700,
+                color: "#fff",
+                fontSize: 10,
               }}
             >
-              ⚽ Futebol brasileiro &nbsp; • &nbsp;
-              🌍 Futebol internacional &nbsp; • &nbsp;
+              ⚽ Jogos do dia &nbsp; • &nbsp;
+              🇧🇷 RPF Notícias &nbsp; • &nbsp;
+              🌍 RPF Internacional &nbsp; • &nbsp;
               🌾 RPF Interior &nbsp; • &nbsp;
               📻 RPF Jornada Esportiva
             </div>
-          </div>
-
-          {/* IDENTIFICAÇÃO */}
-          <div
-            style={{
-              padding: "8px 12px",
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 8,
-              background: "#050806",
-              color: "#7f8981",
-              fontSize: 8,
-            }}
-          >
-            <span>RPF 3 MINUTOS</span>
-            <span>
-              NOTÍCIAS • JOGOS • INFORMAÇÃO
-            </span>
           </div>
         </div>
       </section>
