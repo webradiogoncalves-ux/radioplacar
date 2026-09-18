@@ -1311,7 +1311,7 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
     white-space: nowrap;
 
     animation-name: rpfTickerMove;
-    animation-duration: 60s;
+    animation-duration: 120s;
     animation-timing-function: linear;
     animation-iteration-count: infinite;
 
@@ -1335,13 +1335,13 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
     }
 
     .rpf-tv-ticker-track {
-      animation-duration: 55s;
+      animation-duration: 120s;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .rpf-tv-ticker-track {
-      animation: rpfTickerMove 60s linear infinite !important;
+      animation: rpfTickerMove 120s linear infinite !important;
     }
   }
 `}</style>
