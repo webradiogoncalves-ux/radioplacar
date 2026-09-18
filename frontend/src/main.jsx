@@ -1027,54 +1027,54 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
 
     const interior =
       findMatch((match) => isInteriorMatch(match), used);
-
-    const makeCall = (match, category, emoji) => {
-      if (!match) {
-        return {
-        internacional
-  ? {
-      category: "Internacional",
-      emoji: "🌍",
-      match: internacional,
-      title: "João Pedro é dúvida contra o Brentford",
-      text: "Chelsea aguarda definição sobre o atacante para o confronto desta sexta-feira pela Premier League.",
-    }
-  : makeCall(null, "Internacional", "🌍"), 
-
-      const home = getHomeName(match);
-      const away = getAwayName(match);
-      const league = getLeagueName(match);
-
-      let text;
-
-      if (isLive(match)) {
-        const score = hasScore(match)
-          ? `${getHomeScore(match)} a ${getAwayScore(match)}`
-          : "placar em andamento";
-        text = `${league}: ${home} e ${away} estão ao vivo, ${score}.`;
-      } else if (isFinished(match)) {
-        const score = hasScore(match)
-          ? `${getHomeScore(match)} a ${getAwayScore(match)}`
-          : "partida encerrada";
-        text = `${league}: ${home} x ${away} terminou ${score}.`;
-      } else {
-        text = `${league}: ${home} x ${away}, às ${formatTime(match)}.`;
-      }
-
-      return {
-        category,
-        emoji,
-        match,
-        title: `${home} x ${away}`,
-        text,
-      };
+const makeCall = (match, category, emoji) => {
+  if (!match) {
+    return {
+      category,
+      emoji,
+      match: null,
+      title: "Atualizando informações",
+      text: "A RPF está buscando novas informações esportivas.",
     };
+  }
 
-    return [
-      makeCall(brasil, "Brasil", "🇧🇷"),
-      makeCall(internacional, "Internacional", "🌍"),
-      makeCall(interior, "Interior", "🌾"),
-    ];
+  const home = getHomeName(match);
+  const away = getAwayName(match);
+  const league = getLeagueName(match);
+
+  let text = "";
+
+  if (isLive(match)) {
+    const score = hasScore(match)
+      ? `${getHomeScore(match)} a ${getAwayScore(match)}`
+      : "placar em andamento";
+
+    text = `${league}: ${home} e ${away} estão ao vivo, ${score}.`;
+  } else if (isFinished(match)) {
+    const score = hasScore(match)
+      ? `${getHomeScore(match)} a ${getAwayScore(match)}`
+      : "partida encerrada";
+
+    text = `${league}: ${home} x ${away} terminou ${score}.`;
+  } else {
+    text = `${league}: ${home} x ${away}, às ${formatTime(match)}.`;
+  }
+
+  return {
+    category,
+    emoji,
+    match,
+    title: `${home} x ${away}`,
+    text,
+  };
+};
+
+return [
+  makeCall(brasil, "Brasil", "🇧🇷"),
+  makeCall(internacional, "Internacional", "🌍"),
+  makeCall(interior, "Interior", "🌾"),
+];
+    
   }, [matches]);
 
   return (
