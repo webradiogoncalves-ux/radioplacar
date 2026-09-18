@@ -1262,32 +1262,40 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
 
 <style>{`
   @keyframes rpfTickerMove {
-    0% {
-      transform: translateX(100%);
+    from {
+      transform: translate3d(0, 0, 0);
     }
-    100% {
-      transform: translateX(-100%);
+    to {
+      transform: translate3d(-50%, 0, 0);
     }
-  }
-
-  .rpf-tv-ticker-track {
-    display: inline-flex;
-    align-items: center;
-    gap: 34px;
-    min-width: max-content;
-    white-space: nowrap;
-    animation: rpfTickerMove 32s linear infinite;
-    will-change: transform;
   }
 
   .rpf-tv-ticker {
-    overflow: hidden;
     position: relative;
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
   }
 
-  .rpf-tv-ticker:hover .rpf-tv-ticker-track {
-    animation-play-state: paused;
+  .rpf-tv-ticker-track {
+    display: flex;
+    align-items: center;
+    width: max-content;
+    min-width: max-content;
+    white-space: nowrap;
+
+    animation-name: rpfTickerMove;
+    animation-duration: 28s;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+
+    will-change: transform;
+  }
+
+  .rpf-tv-ticker-track > span {
+    flex: 0 0 auto;
+    padding-right: 42px;
   }
 
   .rpf-tv-news-grid {
@@ -1300,20 +1308,18 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
     .rpf-tv-news-grid {
       grid-template-columns: 1fr;
     }
+
+    .rpf-tv-ticker-track {
+      animation-duration: 22s;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rpf-tv-ticker-track {
+      animation: rpfTickerMove 28s linear infinite !important;
+    }
   }
 `}</style>
-
-<section className="home-block">
-  <div
-    style={{
-      overflow: "hidden",
-      borderRadius: 18,
-      border: "1px solid rgba(70,255,115,.32)",
-      background: "#030604",
-      boxShadow: "0 20px 55px rgba(0,0,0,.45)",
-    }}
-  >
-
     {/* ================= CABEÇALHO ================= */}
     <div
       style={{
