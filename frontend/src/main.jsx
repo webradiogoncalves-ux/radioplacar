@@ -5317,18 +5317,6 @@ function showRpfNotification(notification) {
       setRpfNotification(null);
     }, 7000);
 }
-
-  if (notificationTimerRef.current) {
-    window.clearTimeout(
-      notificationTimerRef.current
-    );
-  }
-
-  notificationTimerRef.current =
-    window.setTimeout(() => {
-      setRpfNotification(null);
-    }, 7000);
-}
   // ====================================================
   // PARTIDAS
   // ====================================================
