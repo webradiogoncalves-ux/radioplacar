@@ -3733,7 +3733,99 @@ function RPFJornadaPlayer({ match }) {
         >
           VINHETA
         </button>
+<button
+  type="button"
+  disabled={!audioEnabled}
+  onClick={async () => {
+    try {
+      const startResponse = await fetch(
+        `${API_URL}/api/rpf/test/start?fixtureId=rpf-test`,
+        { cache: "no-store" }
+      );
 
+      if (!startResponse.ok) {
+        throw new Error(
+          `Teste RPF respondeu ${startResponse.status}`
+        );
+      }
+
+      playedMotorEventsRef.current.clear();
+
+      const nextResponse = await fetch(
+        `${API_URL}/api/rpf/test/next?fixtureId=rpf-test`,
+        { cache: "no-store" }
+      );
+
+      if (!nextResponse.ok) {
+        throw new Error(
+          `Motor RPF respondeu ${nextResponse.status}`
+        );
+      }
+
+      const data = await nextResponse.json();
+
+      const payload =
+        data?.response ??
+        data?.resposta ??
+        data;
+
+      const events =
+        payload?.emitted ??
+        payload?.events ??
+        [];
+
+      if (!Array.isArray(events)) return;
+
+      const ordered = [...events].sort(
+        (a, b) =>
+          Number(a?.order || 0) -
+          Number(b?.order || 0)
+      );
+
+      /*
+       * Primeiro teste:
+       * toca somente o primeiro áudio.
+       * Assim confirmamos o caminho dos arquivos
+       * antes de montar a fila completa.
+       */
+      const firstEvent = ordered.find(
+        (event) =>
+          event?.audio ||
+          event?.intro_audio
+      );
+
+      if (firstEvent) {
+        handleMotorEventAudio(
+          firstEvent,
+          0
+        );
+      }
+    } catch (testError) {
+      console.error(
+        "RPF: erro no teste da Jornada",
+        testError
+      );
+
+      alert(
+        "Não foi possível iniciar o teste da Jornada RPF."
+      );
+    }
+  }}
+  style={{
+    border: "1px solid rgba(88,255,145,.35)",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontWeight: 900,
+    cursor: audioEnabled
+      ? "pointer"
+      : "default",
+    background: "rgba(88,255,145,.10)",
+    color: "#58ff91",
+    opacity: audioEnabled ? 1 : 0.45,
+  }}
+>
+  🧪 TESTAR JORNADA RPF
+</button>
         <button
           type="button"
           disabled={!audioEnabled}
