@@ -3007,15 +3007,8 @@ return new URL(
           restoreCrowd();
         }
 
-        if (afterText) {
-          window.setTimeout(
-            () =>
-              speakMotorText(
-                afterText
-              ),
-            150
-          );
-        }
+        // Não usar a voz automática do navegador
+// depois das gravações oficiais da RPF.
 
         if (
           typeof onFinished ===
@@ -3052,9 +3045,7 @@ return new URL(
         audioError
       );
 
-      if (afterText) {
-        speakMotorText(afterText);
-      }
+     // Sem TTS automático.
     }
   }
 
