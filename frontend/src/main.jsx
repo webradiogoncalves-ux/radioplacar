@@ -5447,6 +5447,51 @@ useEffect(() => {
     previousMap.set(id, current);
   }
 }, [matches, favorites]);
+ useEffect(() => {
+  if (selectedDate !== todayISO()) {
+    return;
+  }
+
+  let cancelled = false;
+
+  async function refreshLiveMatches() {
+    try {
+      const response = await fetch(
+        `${API_URL}/api/matches?date=${encodeURIComponent(
+          selectedDate
+        )}`,
+        {
+          cache: "no-store",
+        }
+      );
+
+      const data = await response.json();
+
+      if (
+        !cancelled &&
+        data?.ok &&
+        Array.isArray(data?.response)
+      ) {
+        setMatches(data.response);
+      }
+    } catch (error) {
+      console.warn(
+        "RPF: atualização silenciosa falhou",
+        error
+      );
+    }
+  }
+
+  const timer = window.setInterval(
+    refreshLiveMatches,
+    20000
+  );
+
+  return () => {
+    cancelled = true;
+    window.clearInterval(timer);
+  };
+}, [selectedDate]); 
   // ====================================================
   // RPF JORNADAS ATIVAS
   // ====================================================
