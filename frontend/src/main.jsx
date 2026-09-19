@@ -3836,9 +3836,26 @@ async function playRpfAudioQueue(paths = []) {
       );
 
     await playRpfAudioQueue([
+  // 1 - Esquentando o Jogo
   "/audio/rpf/rpf_esquentando_o_jogo_chamada_curta.wav",
+
+  // 2 - Abertura RPF Jornada Esportiva
   "/audio/rpf/rpf_vinheta_2_chamada_jornada.wav",
+
+  // 3 - Pré-Jogo
   "/audio/rpf/rpf_pre_jogo_felipe_lima.wav",
+
+  // 4 - Boletim Padrão
+  "/audio/rpf/rpf_boletim_padrao_ana_brenda.wav",
+
+  // 5 - RPF Notícias
+  "/audio/rpf/rpf_noticias_esportiva.mp3",
+
+  // 6 - RPF Internacional
+  "/audio/rpf/rpf_internacional_esportiva.mp3",
+
+  // 7 - RPF Interior
+  "/audio/rpf/rpf_interior_esportiva.mp3",
 ]);
     } catch (testError) {
       console.error(
