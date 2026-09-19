@@ -5777,6 +5777,31 @@ useEffect(() => {
     setRpfNotification(null)
   }
 />
+ <button
+  type="button"
+  onClick={() =>
+    showRpfNotification({
+      icon: "⚽",
+      title: "GOOOOOOL!",
+      text: "Internacional 1 x 0 Grêmio",
+    })
+  }
+  style={{
+    position: "fixed",
+    right: 16,
+    bottom: 90,
+    zIndex: 99998,
+    padding: "10px 14px",
+    border: 0,
+    borderRadius: 12,
+    background: "#2cff8b",
+    color: "#04130b",
+    fontWeight: 900,
+    cursor: "pointer",
+  }}
+>
+  TESTAR NOTIFICAÇÃO
+</button>     
       <div className="app-content">
         {renderContent()}
       </div>
