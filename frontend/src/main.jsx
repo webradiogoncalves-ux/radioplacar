@@ -2960,146 +2960,53 @@ return new URL(
 async function playRpfAudioQueue(paths = []) {
   if (!audioEnabledRef.current || !paths.length) return;
 
-  const audio = stingerAudioRef.current;
-  if (!audio) return;
-
   for (const path of paths) {
     if (!audioEnabledRef.current) break;
 
     await new Promise((resolve) => {
-      try {
-        audio.pause();
-        audio.src = motorAudioUrl(path);
-        audio.currentTime = 0;
-        audio.volume = 0.95;
+      const audio = new Audio();
 
-        const finish = () => {
-          audio.onended = null;
-          audio.onerror = null;
-          resolve();
-        };
-
-        audio.onended = finish;
-
-        audio.onerror = () => {
-          console.warn(
-            "RPF: áudio da fila não carregou:",
-            audio.src
-          );
-          finish();
-        };
-
-        audio.play().catch((audioError) => {
-          console.warn(
-            "RPF: áudio da fila não tocou:",
-            audioError
-          );
-          finish();
-        });
-      } catch (audioError) {
-        console.warn(
-          "RPF: erro na fila de áudio:",
-          audioError
-        );
-        resolve();
-      }
-    });
-
-    // Pequena pausa entre um bloco e outro.
-    await new Promise((resolve) =>
-      window.setTimeout(resolve, 350)
-    );
-  }
-}
-  function playStinger(
-    path,
-    afterText = "",
-    options = {}
-  ) {
-    if (
-      !audioEnabledRef.current
-    ) {
-      return;
-    }
-
-    const audio =
-      stingerAudioRef.current;
-
-    if (!audio || !path) {
-      if (afterText) {
-        speakMotorText(afterText);
-      }
-
-      return;
-    }
-
-    const {
-      duck = true,
-      restore = true,
-      stopAfter = false,
-      onFinished = null,
-    } = options;
-
-    try {
-      audio.pause();
-
-      audio.src =
-        motorAudioUrl(path);
-
-      audio.currentTime = 0;
-      audio.volume = 0.95;
-
-      if (duck) {
-        duckCrowd();
-      }
+      let finished = false;
 
       const finish = () => {
-        if (stopAfter) {
-          stopCrowd();
-        } else if (restore) {
-          restoreCrowd();
-        }
+        if (finished) return;
+        finished = true;
 
-        // Não usar a voz automática do navegador
-// depois das gravações oficiais da RPF.
+        audio.onended = null;
+        audio.onerror = null;
 
-        if (
-          typeof onFinished ===
-          "function"
-        ) {
-          onFinished();
-        }
+        audio.pause();
+        resolve();
       };
+
+      audio.preload = "auto";
+      audio.src = motorAudioUrl(path);
+      audio.volume = 0.95;
 
       audio.onended = finish;
 
       audio.onerror = () => {
         console.warn(
-          "RPF: arquivo de áudio não carregou:",
+          "RPF: arquivo da fila não carregou:",
           audio.src
         );
-
         finish();
       };
 
-      audio
-        .play()
-        .catch((audioError) => {
-          console.warn(
-            "RPF: reprodução bloqueada/indisponível",
-            audioError
-          );
+      audio.play().catch((audioError) => {
+        console.warn(
+          "RPF: arquivo da fila não reproduziu:",
+          audio.src,
+          audioError
+        );
+        finish();
+      });
+    });
 
-          finish();
-        });
-    } catch (audioError) {
-      console.warn(
-        "RPF: erro ao tocar vinheta",
-        audioError
-      );
-
-     // Sem TTS automático.
-    }
+    // Respiro curto entre os blocos da Jornada.
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 500);
+    });
   }
 
   // =====================================================
