@@ -40,7 +40,14 @@ import {
   findRpfJourneyCandidates,
   autoRegisterPriorityJourneys,
   getRpfPriority,
+  pushRpfOfficialLineups,
+  pushRpfCountdown,
+  startRpfJourneyTest,
+  nextRpfJourneyTestStep,
+  getRpfJourneyTest,
+  resetRpfJourneyTest,
   RPF_ENGINE_INFO,
+  RPF_AUDIO,
 } from "./rpf-engine.js";
 // ======================================================
 // RPF NEWS — NOTÍCIAS AUTOMÁTICAS
