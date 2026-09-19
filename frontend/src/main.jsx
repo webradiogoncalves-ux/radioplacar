@@ -3834,27 +3834,135 @@ function playStinger(
           event?.intro_audio
       );
 
-    await playRpfAudioQueue([
-  // 1 - Esquentando o Jogo
+   // ========================================
+// PRÉ-JOGO RPF
+// ========================================
+
+await playRpfAudioQueue([
   "/audio/rpf/rpf_esquentando_o_jogo_chamada_curta.wav",
-
-  // 2 - Abertura RPF Jornada Esportiva
   "/audio/rpf/rpf_vinheta_2_chamada_jornada.wav",
-
-  // 3 - Pré-Jogo
   "/audio/rpf/rpf_pre_jogo_felipe_lima.wav",
-
-  // 4 - Boletim Padrão
   "/audio/rpf/rpf_boletim_padrao_ana_brenda.wav",
-
-  // 5 - RPF Notícias
   "/audio/rpf/rpf_noticias_esportiva.mp3",
-
-  // 6 - RPF Internacional
   "/audio/rpf/rpf_internacional_esportiva.mp3",
-
-  // 7 - RPF Interior
   "/audio/rpf/rpf_interior_esportiva.mp3",
+]);
+
+// Pequena pausa representando a contagem regressiva.
+// A contagem real depois virá do Motor.
+await new Promise((resolve) =>
+  window.setTimeout(resolve, 2500)
+);
+
+// ========================================
+// BOLA ROLANDO / ESTÁDIO
+// ========================================
+
+startCrowd();
+
+await new Promise((resolve) =>
+  window.setTimeout(resolve, 3000)
+);
+
+// ========================================
+// TEMPO E PLACAR
+// ========================================
+
+duckCrowd();
+
+await playRpfAudioQueue([
+  "/audio/rpf/rpf_vinheta_1_tempo_placar.wav",
+]);
+
+restoreCrowd();
+
+await new Promise((resolve) =>
+  window.setTimeout(resolve, 2500)
+);
+
+// ========================================
+// GOL RPF
+// ========================================
+
+duckCrowd();
+
+await playRpfAudioQueue([
+  "/audio/rpf/Vinheta de Esporte para Rádio (Grito de gol).mp3",
+  "/audio/rpf/som de torcida na hora do gol grito de torcida na hora do gol..mp3",
+]);
+
+restoreCrowd();
+
+await new Promise((resolve) =>
+  window.setTimeout(resolve, 3000)
+);
+
+// ========================================
+// PLANTÃO RPF
+// ========================================
+
+duckCrowd();
+
+await playRpfAudioQueue([
+  "/audio/rpf/rpf_01_plantao.wav",
+]);
+
+restoreCrowd();
+
+await new Promise((resolve) =>
+  window.setTimeout(resolve, 2500)
+);
+
+// ========================================
+// INTERVALO
+// ========================================
+
+stopCrowd();
+
+await playRpfAudioQueue([
+  "/audio/rpf/rpf_02_intervalo.wav",
+]);
+
+await new Promise((resolve) =>
+  window.setTimeout(resolve, 2000)
+);
+
+// ========================================
+// SEGUNDO TEMPO
+// ========================================
+
+await playRpfAudioQueue([
+  "/audio/rpf/rpf_03_segundo_tempo.wav",
+]);
+
+startCrowd();
+
+await new Promise((resolve) =>
+  window.setTimeout(resolve, 3000)
+);
+
+// ========================================
+// FIM DE JOGO
+// ========================================
+
+duckCrowd();
+
+await playRpfAudioQueue([
+  "/audio/rpf/rpf_04_fim_de_jogo.wav",
+]);
+
+stopCrowd();
+
+await new Promise((resolve) =>
+  window.setTimeout(resolve, 1500)
+);
+
+// ========================================
+// PÓS-JOGO
+// ========================================
+
+await playRpfAudioQueue([
+  "/audio/rpf/rpf_pos_jogo_felipe_lima.wav",
 ]);
     } catch (testError) {
       console.error(
