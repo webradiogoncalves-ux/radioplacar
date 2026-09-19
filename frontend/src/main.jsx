@@ -2957,7 +2957,60 @@ return new URL(
   // =====================================================
   // VINHETAS
   // =====================================================
+async function playRpfAudioQueue(paths = []) {
+  if (!audioEnabledRef.current || !paths.length) return;
 
+  const audio = stingerAudioRef.current;
+  if (!audio) return;
+
+  for (const path of paths) {
+    if (!audioEnabledRef.current) break;
+
+    await new Promise((resolve) => {
+      try {
+        audio.pause();
+        audio.src = motorAudioUrl(path);
+        audio.currentTime = 0;
+        audio.volume = 0.95;
+
+        const finish = () => {
+          audio.onended = null;
+          audio.onerror = null;
+          resolve();
+        };
+
+        audio.onended = finish;
+
+        audio.onerror = () => {
+          console.warn(
+            "RPF: áudio da fila não carregou:",
+            audio.src
+          );
+          finish();
+        };
+
+        audio.play().catch((audioError) => {
+          console.warn(
+            "RPF: áudio da fila não tocou:",
+            audioError
+          );
+          finish();
+        });
+      } catch (audioError) {
+        console.warn(
+          "RPF: erro na fila de áudio:",
+          audioError
+        );
+        resolve();
+      }
+    });
+
+    // Pequena pausa entre um bloco e outro.
+    await new Promise((resolve) =>
+      window.setTimeout(resolve, 350)
+    );
+  }
+}
   function playStinger(
     path,
     afterText = "",
@@ -3782,12 +3835,11 @@ return new URL(
           event?.intro_audio
       );
 
-      if (firstEvent) {
-        handleMotorEventAudio(
-          firstEvent,
-          0
-        );
-      }
+    await playRpfAudioQueue([
+  "/audio/rpf/rpf_esquentando_o_jogo_chamada_curta.wav",
+  "/audio/rpf/rpf_vinheta_2_chamada_jornada.wav",
+  "/audio/rpf/rpf_pre_jogo_felipe_lima.wav",
+]);
     } catch (testError) {
       console.error(
         "RPF: erro no teste da Jornada",
