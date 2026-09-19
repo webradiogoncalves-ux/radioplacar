@@ -2603,12 +2603,15 @@ function RPFJornadaPlayer({ match }) {
 
     // Os áudios estão em:
     // frontend/public/audio/rpf/
-    return new URL(
-      String(path).startsWith("/")
-        ? String(path)
-        : `/${String(path)}`,
-      window.location.origin
-    ).href;
+   const fileName = String(path)
+  .replace(/^.*\/audio\/rpf\//, "")
+  .replace(/^.*\/media\/audio\/rpc\//, "")
+  .replace(/^\/+/, "");
+
+return new URL(
+  `/media/audio/rpc/${fileName}`,
+  window.location.origin
+).href;
   }
 
   // =====================================================
