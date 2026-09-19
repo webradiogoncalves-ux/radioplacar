@@ -2954,9 +2954,10 @@ return new URL(
     }
   }
 
-  // =====================================================
-  // VINHETAS
-  // =====================================================
+// =====================================================
+// VINHETAS / FILA DE ÁUDIO
+// =====================================================
+
 async function playRpfAudioQueue(paths = []) {
   if (!audioEnabledRef.current || !paths.length) return;
 
@@ -2990,6 +2991,7 @@ async function playRpfAudioQueue(paths = []) {
           "RPF: arquivo da fila não carregou:",
           audio.src
         );
+
         finish();
       };
 
@@ -2999,16 +3001,106 @@ async function playRpfAudioQueue(paths = []) {
           audio.src,
           audioError
         );
+
         finish();
       });
     });
 
-    // Respiro curto entre os blocos da Jornada.
     await new Promise((resolve) => {
       window.setTimeout(resolve, 500);
     });
   }
+}
 
+function playStinger(
+  path,
+  afterText = "",
+  options = {}
+) {
+  if (!audioEnabledRef.current) {
+    return;
+  }
+
+  const audio = stingerAudioRef.current;
+
+  if (!audio || !path) {
+    return;
+  }
+
+  const {
+    duck = true,
+    restore = true,
+    stopAfter = false,
+    onFinished = null,
+  } = options;
+
+  try {
+    audio.pause();
+
+    audio.src = motorAudioUrl(path);
+    audio.currentTime = 0;
+    audio.volume = 0.95;
+
+    if (duck) {
+      duckCrowd();
+    }
+
+    let finished = false;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+
+      audio.onended = null;
+      audio.onerror = null;
+
+      if (stopAfter) {
+        stopCrowd();
+      } else if (restore) {
+        restoreCrowd();
+      }
+
+      // Sem TTS automático depois das gravações RPF.
+
+      if (
+        typeof onFinished === "function"
+      ) {
+        onFinished();
+      }
+    };
+
+    audio.onended = finish;
+
+    audio.onerror = () => {
+      console.warn(
+        "RPF: arquivo de áudio não carregou:",
+        audio.src
+      );
+
+      finish();
+    };
+
+    audio.play().catch((audioError) => {
+      console.warn(
+        "RPF: reprodução bloqueada/indisponível",
+        audioError
+      );
+
+      finish();
+    });
+  } catch (audioError) {
+    console.warn(
+      "RPF: erro ao tocar vinheta",
+      audioError
+    );
+
+    if (
+      typeof onFinished === "function"
+    ) {
+      onFinished();
+    }
+  }
+}
   // =====================================================
   // IDENTIFICAÇÃO DOS EVENTOS
   // =====================================================
