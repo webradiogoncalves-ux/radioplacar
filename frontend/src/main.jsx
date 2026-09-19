@@ -5149,7 +5149,101 @@ function BottomNavigation({
 // ======================================================
 // APP
 // ======================================================
+function RpfNotificationToast({ notification, onClose }) {
+  if (!notification) return null;
 
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 76,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 99999,
+        width: "calc(100% - 28px)",
+        maxWidth: 430,
+        padding: "14px 15px",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12,
+        borderRadius: 17,
+        background:
+          "linear-gradient(145deg,#0c291d,#071a12)",
+        border:
+          "1px solid rgba(44,255,139,.38)",
+        boxShadow:
+          "0 18px 50px rgba(0,0,0,.55)",
+        color: "#fff",
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          flex: "0 0 40px",
+          display: "grid",
+          placeItems: "center",
+          borderRadius: 12,
+          background: "#2cff8b",
+          color: "#04130b",
+          fontSize: 20,
+        }}
+      >
+        {notification.icon || "⚽"}
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <strong
+          style={{
+            display: "block",
+            color: "#2cff8b",
+            fontSize: 10,
+            letterSpacing: ".7px",
+            marginBottom: 4,
+          }}
+        >
+          RPF PLACAR
+        </strong>
+
+        <strong
+          style={{
+            display: "block",
+            fontSize: 14,
+            lineHeight: 1.25,
+          }}
+        >
+          {notification.title}
+        </strong>
+
+        <span
+          style={{
+            display: "block",
+            marginTop: 4,
+            color: "#b8c9c0",
+            fontSize: 11,
+            lineHeight: 1.4,
+          }}
+        >
+          {notification.text}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={onClose}
+        style={{
+          border: 0,
+          background: "transparent",
+          color: "#8ea69a",
+          fontSize: 20,
+          cursor: "pointer",
+        }}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
 function App() {
   const [activeTab, setActiveTab] = useState("home");
 
@@ -5164,7 +5258,10 @@ function App() {
 
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [selectedCompetition, setSelectedCompetition] = useState(null);
+const [rpfNotification, setRpfNotification] = useState(null);
 
+const previousMatchesRef = useRef(new Map());
+const notificationTimerRef = useRef(null);
   const [favorites, setFavorites] = useState(() => {
     try {
       const saved = localStorage.getItem("radioplacar-favorites");
@@ -5174,7 +5271,20 @@ function App() {
       return [];
     }
   });
+function showRpfNotification(notification) {
+  setRpfNotification(notification);
 
+  if (notificationTimerRef.current) {
+    window.clearTimeout(
+      notificationTimerRef.current
+    );
+  }
+
+  notificationTimerRef.current =
+    window.setTimeout(() => {
+      setRpfNotification(null);
+    }, 7000);
+}
   // ====================================================
   // PARTIDAS
   // ====================================================
@@ -5218,7 +5328,125 @@ function App() {
       cancelled = true;
     };
   }, [selectedDate]);
+useEffect(() => {
+  if (!Array.isArray(matches) || !matches.length) {
+    return;
+  }
 
+  const previousMap = previousMatchesRef.current;
+
+  if (previousMap.size === 0) {
+    for (const match of matches) {
+      previousMap.set(getMatchId(match), {
+        homeScore: getHomeScore(match),
+        awayScore: getAwayScore(match),
+        status: getRawStatus(match),
+      });
+    }
+
+    return;
+  }
+
+  for (const match of matches) {
+    const id = getMatchId(match);
+
+    if (!id) continue;
+
+    const previous = previousMap.get(id);
+
+    const current = {
+      homeScore: getHomeScore(match),
+      awayScore: getAwayScore(match),
+      status: getRawStatus(match),
+    };
+
+    const favorite = favorites.includes(String(id));
+
+    if (previous && favorite) {
+      const home = getHomeName(match);
+      const away = getAwayName(match);
+
+      const previousHome = Number(previous.homeScore);
+      const previousAway = Number(previous.awayScore);
+
+      const currentHome = Number(current.homeScore);
+      const currentAway = Number(current.awayScore);
+
+      if (
+        Number.isFinite(previousHome) &&
+        Number.isFinite(previousAway) &&
+        Number.isFinite(currentHome) &&
+        Number.isFinite(currentAway) &&
+        (
+          currentHome > previousHome ||
+          currentAway > previousAway
+        )
+      ) {
+        showRpfNotification({
+          icon: "⚽",
+          title: "GOOOOOOL!",
+          text:
+            `${home} ${current.homeScore} x ` +
+            `${current.awayScore} ${away}`,
+        });
+      }
+
+      const status =
+        String(current.status).toLowerCase();
+
+      const oldStatus =
+        String(previous.status).toLowerCase();
+
+      if (
+        !oldStatus.includes("progress") &&
+        !oldStatus.includes("live") &&
+        isLive(match)
+      ) {
+        showRpfNotification({
+          icon: "🔥",
+          title: "BOLA ROLANDO!",
+          text: `${home} x ${away} começou.`,
+        });
+      }
+
+      if (
+        (
+          status.includes("halftime") ||
+          status.includes("half_time") ||
+          status === "ht"
+        ) &&
+        !(
+          oldStatus.includes("halftime") ||
+          oldStatus.includes("half_time") ||
+          oldStatus === "ht"
+        )
+      ) {
+        showRpfNotification({
+          icon: "⏸️",
+          title: "INTERVALO",
+          text:
+            `${home} ${current.homeScore ?? 0} x ` +
+            `${current.awayScore ?? 0} ${away}`,
+        });
+      }
+
+      if (
+        !oldStatus.includes("finished") &&
+        isFinished(match)
+      ) {
+        showRpfNotification({
+          icon: "🏁",
+          title: "FIM DE JOGO",
+          text:
+            `${home} ${current.homeScore ?? 0} x ` +
+            `${current.awayScore ?? 0} ${away}`,
+        });
+      }
+    }
+
+    previousMap.set(id, current);
+  }
+}, [matches, favorites]);
   // ====================================================
   // RPF JORNADAS ATIVAS
   // ====================================================
