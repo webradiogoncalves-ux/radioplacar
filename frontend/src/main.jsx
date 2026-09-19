@@ -5274,6 +5274,50 @@ const notificationTimerRef = useRef(null);
 function showRpfNotification(notification) {
   setRpfNotification(notification);
 
+  // ========================================
+  // SOM DE GOL RPF
+  // ========================================
+
+  const isGoal =
+    notification?.icon === "⚽" ||
+    String(notification?.title || "")
+      .toUpperCase()
+      .includes("GOL");
+
+  if (isGoal) {
+    try {
+      const goalAudio = new Audio(
+        "/media/audio/rpc/Vinheta de Esporte para Rádio (Grito de gol).mp3"
+      );
+
+      goalAudio.volume = 1;
+
+      goalAudio.play().catch((error) => {
+        console.warn(
+          "RPF: navegador bloqueou o som da notificação",
+          error
+        );
+      });
+    } catch (error) {
+      console.warn(
+        "RPF: erro no grito de gol",
+        error
+      );
+    }
+  }
+
+  if (notificationTimerRef.current) {
+    window.clearTimeout(
+      notificationTimerRef.current
+    );
+  }
+
+  notificationTimerRef.current =
+    window.setTimeout(() => {
+      setRpfNotification(null);
+    }, 7000);
+}
+
   if (notificationTimerRef.current) {
     window.clearTimeout(
       notificationTimerRef.current
