@@ -3465,13 +3465,7 @@ function RPFJornadaPlayer({ match }) {
    * Só mostra o painel quando
    * realmente existir uma Jornada.
    */
-  if (
-    !engineState &&
-    !match?._rpfJourney
-  ) {
-    return null;
-  }
-
+  
   return (
     <section
       className="rpf-jornada is-on"
