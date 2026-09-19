@@ -5770,7 +5770,13 @@ useEffect(() => {
   return (
     <div className="app-shell">
       <Header />
-
+      
+<RpfNotificationToast
+  notification={rpfNotification}
+  onClose={() =>
+    setRpfNotification(null)
+  }
+/>
       <div className="app-content">
         {renderContent()}
       </div>
