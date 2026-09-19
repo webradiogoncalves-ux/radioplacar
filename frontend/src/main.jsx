@@ -1029,257 +1029,265 @@ const [competitionsLoading, setCompetitionsLoading] = useState(true);
     };
   }, []);
 
-  const normalizeRpfNews = (item, category, emoji) => ({
-    id: item?.id || `${category}-${item?.url || item?.title || "updating"}`,
-    category,
-    emoji,
-    title: item?.title || item?.titulo || "Atualizando notícias",
-    text: item?.text || item?.texto || item?.description || item?.descricao || "",
-    source: item?.source || item?.fonte || "RPF",
-    url: item?.url || item?.link || "",
-    publishedAt: item?.publishedAt || item?.published_at || item?.data || null,
-    match: null,
-  });
+ function cleanRpfNewsText(value) {
+  return String(value || "")
+    // entidades HTML comuns
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
 
-  const rpfThreeMinutes = useMemo(() => [
-    normalizeRpfNews(rpfNews.brasil[0], "RPF Notícias", "🇧🇷"),
-    normalizeRpfNews(rpfNews.internacional[0], "RPF Internacional", "🌍"),
-    normalizeRpfNews(rpfNews.interior[0], "RPF Interior", "🌾"),
-  ], [rpfNews]);
+    // tags HTML
+    .replace(/<[^>]*>/g, " ")
 
-  const rpfFeaturedNews = useMemo(() => {
-    if (!heroMatch) return null;
+    // sujeiras comuns de captura
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/�+/g, "")
+    .replace(/\s*&%\s*&?/g, " ")
+    .replace(/\s*%\s*&\s*/g, " ")
 
-    const home = normalizeText(getHomeName(heroMatch)).toLowerCase();
-    const away = normalizeText(getAwayName(heroMatch)).toLowerCase();
-    const league = normalizeText(getLeagueName(heroMatch)).toLowerCase();
-    const allNews = [...rpfNews.brasil, ...rpfNews.internacional, ...rpfNews.interior];
+    // espaços duplicados
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-    const importantWords = (value) => value.split(" ").filter((word) => word.length >= 5);
+const normalizeRpfNews = (item, category, emoji) => ({
+  id:
+    item?.id ||
+    `${category}-${item?.url || item?.title || "updating"}`,
 
-    const scoreNews = (item) => {
-      const title = normalizeText(item?.title || item?.titulo || "").toLowerCase();
-      const text = normalizeText(item?.text || item?.texto || item?.description || "").toLowerCase();
-      const content = `${title} ${text}`;
-      let score = 0;
+  category,
+  emoji,
 
-      if (home && content.includes(home)) score += 10;
-      if (away && content.includes(away)) score += 10;
-      if (importantWords(home).some((word) => content.includes(word))) score += 4;
-      if (importantWords(away).some((word) => content.includes(word))) score += 4;
-      if (importantWords(league).some((word) => content.includes(word))) score += 2;
-      return score;
-    };
+  title: cleanRpfNewsText(
+    item?.title ||
+      item?.titulo ||
+      "Atualizando notícias"
+  ),
 
-    return allNews
-      .map((item) => ({ item, score: scoreNews(item) }))
-      .filter((entry) => entry.score > 0)
-      .sort((a, b) => b.score - a.score)[0]?.item || null;
-  }, [heroMatch, rpfNews]);
+  text: cleanRpfNewsText(
+    item?.text ||
+      item?.texto ||
+      item?.description ||
+      item?.descricao ||
+      ""
+  ),
 
-  const rpfTickerNews = useMemo(() => {
-    const source = rpfNews.ticker.length
+  source: cleanRpfNewsText(
+    item?.source ||
+      item?.fonte ||
+      "RPF"
+  ),
+
+  url:
+    item?.url ||
+    item?.link ||
+    "",
+
+  publishedAt:
+    item?.publishedAt ||
+    item?.published_at ||
+    item?.data ||
+    null,
+
+  match: null,
+});
+const rpfThreeMinutes = useMemo(() => [
+  normalizeRpfNews(
+    rpfNews.brasil[0],
+    "RPF Notícias",
+    "🇧🇷"
+  ),
+
+  normalizeRpfNews(
+    rpfNews.internacional[0],
+    "RPF Internacional",
+    "🌍"
+  ),
+
+  normalizeRpfNews(
+    rpfNews.interior[0],
+    "RPF Interior",
+    "🌾"
+  ),
+], [rpfNews]);
+
+const rpfFeaturedNews = useMemo(() => {
+  if (!heroMatch) return null;
+
+  const home = normalizeText(
+    getHomeName(heroMatch)
+  ).toLowerCase();
+
+  const away = normalizeText(
+    getAwayName(heroMatch)
+  ).toLowerCase();
+
+  const league = normalizeText(
+    getLeagueName(heroMatch)
+  ).toLowerCase();
+
+  const allNews = [
+    ...rpfNews.brasil,
+    ...rpfNews.internacional,
+    ...rpfNews.interior,
+  ];
+
+  const importantWords = (value) =>
+    value
+      .split(" ")
+      .filter((word) => word.length >= 5);
+
+  const scoreNews = (item) => {
+    const title = normalizeText(
+      item?.title ||
+      item?.titulo ||
+      ""
+    ).toLowerCase();
+
+    const text = normalizeText(
+      item?.text ||
+      item?.texto ||
+      item?.description ||
+      ""
+    ).toLowerCase();
+
+    const content = `${title} ${text}`;
+
+    let score = 0;
+
+    if (
+      home &&
+      content.includes(home)
+    ) {
+      score += 10;
+    }
+
+    if (
+      away &&
+      content.includes(away)
+    ) {
+      score += 10;
+    }
+
+    if (
+      importantWords(home).some(
+        (word) => content.includes(word)
+      )
+    ) {
+      score += 4;
+    }
+
+    if (
+      importantWords(away).some(
+        (word) => content.includes(word)
+      )
+    ) {
+      score += 4;
+    }
+
+    if (
+      importantWords(league).some(
+        (word) => content.includes(word)
+      )
+    ) {
+      score += 2;
+    }
+
+    return score;
+  };
+
+  return allNews
+    .map((item) => ({
+      item,
+      score: scoreNews(item),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort(
+      (a, b) =>
+        b.score - a.score
+    )[0]?.item || null;
+
+}, [heroMatch, rpfNews]);
+
+const rpfTickerNews = useMemo(() => {
+  const source =
+    rpfNews.ticker.length
       ? rpfNews.ticker
-      : [...rpfNews.brasil, ...rpfNews.internacional, ...rpfNews.interior];
-    const seen = new Set();
+      : [
+          ...rpfNews.brasil,
+          ...rpfNews.internacional,
+          ...rpfNews.interior,
+        ];
 
-    return source.map((item, index) => {
-      const title = item?.title || item?.titulo || "";
-      const text = item?.text || item?.texto || item?.description || "";
-      const key = normalizeText(`${title}-${item?.url || index}`).toLowerCase();
+  const seen = new Set();
+
+  return source
+    .map((item, index) => {
+      const title =
+        cleanRpfNewsText(
+          item?.title ||
+          item?.titulo ||
+          ""
+        );
+
+      const text =
+        cleanRpfNewsText(
+          item?.text ||
+          item?.texto ||
+          item?.description ||
+          ""
+        );
+
+      const key =
+        normalizeText(
+          `${title}-${item?.url || index}`
+        ).toLowerCase();
+
       return {
-        id: item?.id || `ticker-${index}`,
-        category: item?.category || item?.categoria || "RPF",
+        id:
+          item?.id ||
+          `ticker-${index}`,
+
+        category:
+          item?.category ||
+          item?.categoria ||
+          "RPF",
+
         title,
         text,
-        url: item?.url || item?.link || "",
+
+        url:
+          item?.url ||
+          item?.link ||
+          "",
+
         key,
       };
-    }).filter((item) => {
-      if (!item.title || seen.has(item.key)) return false;
+    })
+
+    .filter((item) => {
+      if (
+        !item.title ||
+        seen.has(item.key)
+      ) {
+        return false;
+      }
+
       seen.add(item.key);
       return true;
-    }).slice(0, 20);
-  }, [rpfNews]);
+    })
 
-  return (
-    <main className="screen home-screen rpf-home">
+    .slice(0, 20);
 
-      {/* CAPA DO DIA */}
+}, [rpfNews]);
 
-      <section className="rpf-home-cover">
-        <div className="rpf-cover-copy">
-          <span className="hero-kicker">
-            ⚽ RPF PLACAR • FUTEBOL HOJE
-          </span>
-
-          <h1>O futebol do dia está aqui.</h1>
-
-          <p>
-            Placar, campeonatos e rádios confirmadas
-            em um só lugar.
-          </p>
-
-          <div className="rpf-cover-numbers">
-            <div>
-              <strong>{matches.length}</strong>
-              <span>PARTIDAS</span>
-            </div>
-
-            <div>
-              <strong>{liveMatches.length}</strong>
-              <span>AO VIVO</span>
-            </div>
-
-            <div>
-              <strong>{interiorMatches.length}</strong>
-              <span>INTERIOR</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-
-      {/* DESTAQUE PRINCIPAL */}
-
-      {heroMatch && (
-        <section className="home-block rpf-main-highlight">
-          <div className="section-heading">
-            <div>
-              <span
-                className={`section-kicker ${
-                  isLive(heroMatch)
-                    ? "live-kicker"
-                    : ""
-                }`}
-              >
-                {isLive(heroMatch)
-                  ? "🟢 AO VIVO"
-                  : isInteriorMatch(heroMatch)
-                  ? "🔴 PRÉ-JOGO • RPF INTERIOR"
-                  : "⭐ DESTAQUE DO DIA"}
-              </span>
-
-              <h2>
-                {getHomeName(heroMatch)} x{" "}
-                {getAwayName(heroMatch)}
-              </h2>
-            </div>
-
-            <Star size={21} />
-          </div>
-
-          <MatchCard
-            match={heroMatch}
-            favorites={favorites}
-            onToggleFavorite={onToggleFavorite}
-            onOpen={onOpenMatch}
-          />
-        </section>
-      )}
-
-
-      {/* DESTAQUES DO DIA */}
-
-      <section className="home-block">
-        <div className="section-heading">
-          <div>
-            <span className="section-kicker">
-              EM DESTAQUE
-            </span>
-
-            <h2>Destaques do dia</h2>
-          </div>
-
-          <Star size={21} />
-        </div>
-
-        {loading ? (
-          <div className="loading-card">
-            Carregando destaques...
-          </div>
-        ) : highlights.length > 0 ? (
-          <div className="highlights-scroll">
-            {highlights.map((match, index) => (
-              <HighlightCard
-                key={`highlight-${getMatchId(match)}-${index}`}
-                match={match}
-                onOpen={onOpenMatch}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="empty-card">
-            Nenhuma partida encontrada para hoje.
-          </div>
-        )}
-      </section>
-
-
-      {/* RPF INTERIOR */}
-
-      {interiorMatches.length > 0 && (
-        <section className="home-block rpf-interior-block">
-          <div className="section-heading">
-            <div>
-              <span className="section-kicker">
-                🌾 FUTEBOL DE VERDADE
-              </span>
-
-              <h2>RPF Interior</h2>
-            </div>
-
-            <Radio size={21} />
-          </div>
-
-          <p className="rpf-section-description">
-            Estaduais, divisões de acesso, Série C,
-            Série D e o futebol que também merece
-            destaque.
-          </p>
-
-          <div className="rpf-interior-scroll">
-            {interiorMatches
-              .slice(0, 6)
-              .map((match, index) => (
-                <HighlightCard
-                  key={`interior-${getMatchId(match)}-${index}`}
-                  match={match}
-                  onOpen={onOpenMatch}
-                />
-              ))}
-          </div>
-        </section>
-      )}
-
-
-      {/* RPF EDITORIAL */}
-      <section className="home-block rpf-editorial-block">
-        <div className="section-heading">
-          <div>
-            <span className="section-kicker">RPF EM CAMPO</span>
-            <h2>Notícias e cobertura RPF</h2>
-          </div>
-          <Wifi size={21} />
-        </div>
-
-        <div className="rpf-editorial-grid">
-          {rpfThreeMinutes.map((item) => (
-            <article
-              key={`editorial-${item.id}`}
-              className="rpf-editorial-card"
-              onClick={() => item.url && window.open(item.url, "_blank", "noopener,noreferrer")}
-              style={{ cursor: item.url ? "pointer" : "default" }}
-            >
-              <span>{item.emoji} {String(item.category).toUpperCase()}</span>
-              <strong>{item.title}</strong>
-              <p>{item.text || (rpfNewsLoading ? "Atualizando notícias..." : "Nova informação em atualização.")}</p>
-              {item.source && <small>Fonte: {item.source}</small>}
-            </article>
-          ))}
-        </div>
-      </section>
-
+return (
+  <main className="screen home-screen rpf-home">
+    
 {/* ============================================================
     RPF 3 MINUTOS — TELA TV OFICIAL
     Logo da competição + Esquentando + ticker contínuo
