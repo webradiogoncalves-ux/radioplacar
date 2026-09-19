@@ -2364,7 +2364,340 @@ app.get(
     }
   }
 );
+// ======================================================
+// RPF JORNADA ESPORTIVA — MOTOR v1.3
+// ROTAS DE TESTE
+// ======================================================
+//
+// IMPORTANTE:
+// Estas rotas usam o modo TESTE do Motor RPF.
+// Não alteram placares reais e não criam resultados
+// falsos na BSD.
+//
+// Sequência:
+// PRE_GAME
+// LIVE
+// GOAL
+// BREAKING
+// HALFTIME
+// SECOND_HALF
+// FULLTIME
+// POST_GAME
+// ======================================================
 
+
+// ======================================================
+// INFORMAÇÕES DO MOTOR RPF
+// ======================================================
+
+app.get(
+  "/api/rpf/engine",
+  (_req, res) => {
+    res.json({
+      ok: true,
+      response: RPF_ENGINE_INFO,
+      audio: RPF_AUDIO,
+    });
+  }
+);
+
+
+// ======================================================
+// INICIAR TESTE DA JORNADA
+//
+// Exemplo:
+// /api/rpf/test/start
+//
+// Também aceita:
+// /api/rpf/test/start?fixtureId=123
+// ======================================================
+
+app.get(
+  "/api/rpf/test/start",
+  (req, res) => {
+    try {
+      const fixtureId =
+        String(
+          req.query.fixtureId ||
+          "rpf-test"
+        );
+
+      const result =
+        startRpfJourneyTest({
+          fixtureId,
+        });
+
+      res.json(result);
+    } catch (error) {
+      console.error(
+        "ERRO RPF TEST START:",
+        error
+      );
+
+      res
+        .status(500)
+        .json({
+          ok: false,
+          test_mode: true,
+          error:
+            error?.message ||
+            "Falha ao iniciar teste da Jornada RPF",
+        });
+    }
+  }
+);
+
+
+// ======================================================
+// PRÓXIMA ETAPA DO TESTE
+//
+// Cada chamada avança UMA etapa.
+//
+// PRE_GAME
+// LIVE
+// GOAL
+// BREAKING
+// HALFTIME
+// SECOND_HALF
+// FULLTIME
+// POST_GAME
+//
+// Exemplo:
+// /api/rpf/test/next
+// ======================================================
+
+app.get(
+  "/api/rpf/test/next",
+  (req, res) => {
+    try {
+      const fixtureId =
+        String(
+          req.query.fixtureId ||
+          "rpf-test"
+        );
+
+      const result =
+        nextRpfJourneyTestStep({
+          fixtureId,
+        });
+
+      res.json(result);
+    } catch (error) {
+      console.error(
+        "ERRO RPF TEST NEXT:",
+        error
+      );
+
+      res
+        .status(500)
+        .json({
+          ok: false,
+          test_mode: true,
+          error:
+            error?.message ||
+            "Falha ao avançar teste da Jornada RPF",
+        });
+    }
+  }
+);
+
+
+// ======================================================
+// VER ESTADO DO TESTE
+//
+// Exemplo:
+// /api/rpf/test/status
+// ======================================================
+
+app.get(
+  "/api/rpf/test/status",
+  (req, res) => {
+    try {
+      const fixtureId =
+        String(
+          req.query.fixtureId ||
+          "rpf-test"
+        );
+
+      const result =
+        getRpfJourneyTest({
+          fixtureId,
+        });
+
+      if (!result) {
+        return res.json({
+          ok: true,
+          test_mode: true,
+          fixtureId,
+          active: false,
+          message:
+            "Nenhum teste iniciado.",
+        });
+      }
+
+      res.json({
+        ok: true,
+        test_mode: true,
+        response: result,
+      });
+    } catch (error) {
+      console.error(
+        "ERRO RPF TEST STATUS:",
+        error
+      );
+
+      res
+        .status(500)
+        .json({
+          ok: false,
+          test_mode: true,
+          error:
+            error?.message ||
+            "Falha ao consultar teste da Jornada RPF",
+        });
+    }
+  }
+);
+
+
+// ======================================================
+// RESETAR TESTE
+//
+// Exemplo:
+// /api/rpf/test/reset
+// ======================================================
+
+app.get(
+  "/api/rpf/test/reset",
+  (req, res) => {
+    try {
+      const fixtureId =
+        String(
+          req.query.fixtureId ||
+          "rpf-test"
+        );
+
+      const result =
+        resetRpfJourneyTest({
+          fixtureId,
+        });
+
+      res.json(result);
+    } catch (error) {
+      console.error(
+        "ERRO RPF TEST RESET:",
+        error
+      );
+
+      res
+        .status(500)
+        .json({
+          ok: false,
+          test_mode: true,
+          error:
+            error?.message ||
+            "Falha ao resetar teste da Jornada RPF",
+        });
+    }
+  }
+);
+
+
+// ======================================================
+// ROTAS POST — PARA O FRONTEND/APK
+// ======================================================
+
+app.post(
+  "/api/rpf/test/start",
+  (req, res) => {
+    try {
+      const fixtureId =
+        String(
+          req.body?.fixtureId ||
+          "rpf-test"
+        );
+
+      const result =
+        startRpfJourneyTest({
+          fixtureId,
+        });
+
+      res.json(result);
+    } catch (error) {
+      res
+        .status(500)
+        .json({
+          ok: false,
+          test_mode: true,
+          error:
+            error?.message ||
+            "Falha ao iniciar teste",
+        });
+    }
+  }
+);
+
+
+app.post(
+  "/api/rpf/test/next",
+  (req, res) => {
+    try {
+      const fixtureId =
+        String(
+          req.body?.fixtureId ||
+          "rpf-test"
+        );
+
+      const result =
+        nextRpfJourneyTestStep({
+          fixtureId,
+        });
+
+      res.json(result);
+    } catch (error) {
+      res
+        .status(500)
+        .json({
+          ok: false,
+          test_mode: true,
+          error:
+            error?.message ||
+            "Falha ao avançar teste",
+        });
+    }
+  }
+);
+
+
+app.post(
+  "/api/rpf/test/reset",
+  (req, res) => {
+    try {
+      const fixtureId =
+        String(
+          req.body?.fixtureId ||
+          "rpf-test"
+        );
+
+      const result =
+        resetRpfJourneyTest({
+          fixtureId,
+        });
+
+      res.json(result);
+    } catch (error) {
+      res
+        .status(500)
+        .json({
+          ok: false,
+          test_mode: true,
+          error:
+            error?.message ||
+            "Falha ao resetar teste",
+        });
+    }
+  }
+);
 // ======================================================
 // 404
 // ======================================================
